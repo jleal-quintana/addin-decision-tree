@@ -1,0 +1,183 @@
+import { DecisionTreeData } from "../models/types";
+
+export function oilDrillingExample(): DecisionTreeData {
+  return {
+    rootId: "root",
+    metadata: {
+      name: "Perforación de Pozo",
+      createdAt: new Date().toISOString(),
+      updatedAt: new Date().toISOString(),
+      mode: "maximize",
+    },
+    nodes: {
+      root: {
+        id: "root", type: "decision", label: "¿Perforar?",
+        payoff: null, cost: null, time: null,
+        expectedValue: null, isOptimal: false,
+        parentId: null, childIds: ["drill", "no_drill"],
+        probability: null, collapsed: false, customFields: {},
+      },
+      drill: {
+        id: "drill", type: "chance", label: "Perforar",
+        payoff: null, cost: 200000, time: "6 meses",
+        expectedValue: null, isOptimal: false,
+        parentId: "root", childIds: ["oil", "dry"],
+        probability: null, collapsed: false, customFields: {},
+      },
+      oil: {
+        id: "oil", type: "end", label: "Hay petróleo",
+        payoff: 1000000, cost: null, time: null,
+        expectedValue: null, isOptimal: false,
+        parentId: "drill", childIds: [],
+        probability: 0.6, collapsed: false, customFields: {},
+      },
+      dry: {
+        id: "dry", type: "end", label: "Pozo seco",
+        payoff: -500000, cost: null, time: null,
+        expectedValue: null, isOptimal: false,
+        parentId: "drill", childIds: [],
+        probability: 0.4, collapsed: false, customFields: {},
+      },
+      no_drill: {
+        id: "no_drill", type: "end", label: "No perforar",
+        payoff: 0, cost: null, time: null,
+        expectedValue: null, isOptimal: false,
+        parentId: "root", childIds: [],
+        probability: null, collapsed: false, customFields: {},
+      },
+    },
+  };
+}
+
+export function productLaunchExample(): DecisionTreeData {
+  return {
+    rootId: "root",
+    metadata: {
+      name: "Lanzamiento de Producto",
+      createdAt: new Date().toISOString(),
+      updatedAt: new Date().toISOString(),
+      mode: "maximize",
+    },
+    nodes: {
+      root: {
+        id: "root", type: "decision", label: "¿Lanzar producto?",
+        payoff: null, cost: null, time: null,
+        expectedValue: null, isOptimal: false,
+        parentId: null, childIds: ["launch", "no_launch"],
+        probability: null, collapsed: false, customFields: {},
+      },
+      launch: {
+        id: "launch", type: "chance", label: "Lanzar",
+        payoff: null, cost: 150000, time: "3 meses",
+        expectedValue: null, isOptimal: false,
+        parentId: "root", childIds: ["high_demand", "med_demand", "low_demand"],
+        probability: null, collapsed: false, customFields: {},
+      },
+      high_demand: {
+        id: "high_demand", type: "end", label: "Demanda alta",
+        payoff: 500000, cost: null, time: null,
+        expectedValue: null, isOptimal: false,
+        parentId: "launch", childIds: [],
+        probability: 0.3, collapsed: false, customFields: {},
+      },
+      med_demand: {
+        id: "med_demand", type: "end", label: "Demanda media",
+        payoff: 100000, cost: null, time: null,
+        expectedValue: null, isOptimal: false,
+        parentId: "launch", childIds: [],
+        probability: 0.5, collapsed: false, customFields: {},
+      },
+      low_demand: {
+        id: "low_demand", type: "end", label: "Demanda baja",
+        payoff: -200000, cost: null, time: null,
+        expectedValue: null, isOptimal: false,
+        parentId: "launch", childIds: [],
+        probability: 0.2, collapsed: false, customFields: {},
+      },
+      no_launch: {
+        id: "no_launch", type: "end", label: "No lanzar",
+        payoff: 0, cost: null, time: null,
+        expectedValue: null, isOptimal: false,
+        parentId: "root", childIds: [],
+        probability: null, collapsed: false, customFields: {},
+      },
+    },
+  };
+}
+
+export function workoverExample(): DecisionTreeData {
+  return {
+    rootId: "wo_root",
+    metadata: {
+      name: "Workover de Pozo",
+      createdAt: new Date().toISOString(),
+      updatedAt: new Date().toISOString(),
+      mode: "minimize",
+    },
+    nodes: {
+      wo_root: {
+        id: "wo_root", type: "decision", label: "¿Hacer Workover?",
+        payoff: null, cost: null, time: null,
+        expectedValue: null, isOptimal: false,
+        parentId: null, childIds: ["wo_do", "wo_no"],
+        probability: null, collapsed: false, customFields: {},
+      },
+      wo_do: {
+        id: "wo_do", type: "chance", label: "Hacer Workover",
+        payoff: null, cost: 150000, time: "45 dias",
+        expectedValue: null, isOptimal: false,
+        parentId: "wo_root", childIds: ["wo_ok", "wo_fail"],
+        probability: null, collapsed: false, customFields: { "CAPEX": 150000 },
+      },
+      wo_ok: {
+        id: "wo_ok", type: "chance", label: "Exito",
+        payoff: null, cost: null, time: null,
+        expectedValue: null, isOptimal: false,
+        parentId: "wo_do", childIds: ["wo_high", "wo_med"],
+        probability: 0.65, collapsed: false, customFields: {},
+      },
+      wo_high: {
+        id: "wo_high", type: "end", label: "Produccion alta",
+        payoff: 80000, cost: null, time: null,
+        expectedValue: null, isOptimal: false,
+        parentId: "wo_ok", childIds: [],
+        probability: 0.6, collapsed: false, customFields: { "Precio petroleo": "USD 65/bbl" },
+      },
+      wo_med: {
+        id: "wo_med", type: "end", label: "Produccion media",
+        payoff: 180000, cost: null, time: null,
+        expectedValue: null, isOptimal: false,
+        parentId: "wo_ok", childIds: [],
+        probability: 0.4, collapsed: false, customFields: { "Precio petroleo": "USD 55/bbl" },
+      },
+      wo_fail: {
+        id: "wo_fail", type: "decision", label: "Fracaso",
+        payoff: null, cost: null, time: null,
+        expectedValue: null, isOptimal: false,
+        parentId: "wo_do", childIds: ["wo_retry", "wo_abandon"],
+        probability: 0.35, collapsed: false, customFields: {},
+      },
+      wo_retry: {
+        id: "wo_retry", type: "end", label: "Re-intervenir",
+        payoff: 450000, cost: 120000, time: null,
+        expectedValue: null, isOptimal: false,
+        parentId: "wo_fail", childIds: [],
+        probability: null, collapsed: false, customFields: { "OPEX": 120000 },
+      },
+      wo_abandon: {
+        id: "wo_abandon", type: "end", label: "Abandonar pozo",
+        payoff: 250000, cost: null, time: null,
+        expectedValue: null, isOptimal: false,
+        parentId: "wo_fail", childIds: [],
+        probability: null, collapsed: false, customFields: {},
+      },
+      wo_no: {
+        id: "wo_no", type: "end", label: "No intervenir",
+        payoff: 320000, cost: null, time: null,
+        expectedValue: null, isOptimal: false,
+        parentId: "wo_root", childIds: [],
+        probability: null, collapsed: false, customFields: { "OPEX anual": 220000 },
+      },
+    },
+  };
+}
