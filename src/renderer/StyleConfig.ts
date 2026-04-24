@@ -1,3 +1,5 @@
+import { QUINTANA } from "../rendering/designTokens";
+
 export interface GridProfile {
   startRow: number;
   startCol: number;
@@ -9,8 +11,12 @@ export interface GridProfile {
 
 export const SHAPE_PREFIX = "DT_";
 
+/**
+ * El documento empieza con 5 filas de header (logo/título/autor), así que el
+ * árbol arranca en la fila 6 (startRow=6). Ver DESIGN.md §5.1.
+ */
 export const GRID: GridProfile = {
-  startRow: 3,
+  startRow: 6,
   startCol: 1,
   nodeRows: 4,
   nodeCols: 4,
@@ -28,10 +34,10 @@ export const ROW_HEIGHT = 20;
 export const SHAPE_ROW_HEIGHT = 36;
 
 export const EDGE_COLORS = {
-  normal: "#1B4B6C",
-  optimal: "#6B7B38",
-  normalWeight: 2,
-  optimalWeight: 3,
+  normal: QUINTANA.marine,
+  optimal: QUINTANA.olive,
+  normalWeight: 1.5,
+  optimalWeight: 2.5,
 };
 
-export const OPTIMAL_BORDER_COLOR = "#6B7B38";
+export const OPTIMAL_BORDER_COLOR = QUINTANA.olive;
