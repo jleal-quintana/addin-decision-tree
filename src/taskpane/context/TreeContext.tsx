@@ -7,13 +7,13 @@ import { findOptimalPath } from "../../engine/RollbackAnalysis";
 interface TreeState {
   tree: DecisionTreeData;
   selectedNodeId: string | null;
-  activeTab: "build" | "results" | "sensitivity";
+  activeTab: "build" | "results";
 }
 
 type FullAction =
   | TreeAction
   | { type: "SELECT_NODE"; nodeId: string | null }
-  | { type: "SET_TAB"; tab: "build" | "results" | "sensitivity" };
+  | { type: "SET_TAB"; tab: "build" | "results" };
 
 const initialState: TreeState = {
   tree: createEmptyTree(),

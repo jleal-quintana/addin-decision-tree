@@ -12,6 +12,7 @@ import {
   TreeNode,
 } from "../models/types";
 import { QUINTANA, RENDER_TOKENS } from "../rendering/designTokens";
+import { enumeratePaths, PathRow } from "../engine/PathEnumeration";
 import { COL_WIDTH, EDGE_COLORS, GRID, ROW_HEIGHT, SHAPE_PREFIX, SHAPE_ROW_HEIGHT } from "./StyleConfig";
 
 type ShapeType = "decision" | "chance" | "end";
@@ -431,90 +432,7 @@ function renderRecommendationBox(
   return detailRow + 2;
 }
 
-interface PathRow {
-  label: string;
-  probability: number;
-  value: number;
-  diff: number;
-  isOptimal: boolean;
-}
-
-/**
- * Enumera los caminos terminales (root → end) con su probabilidad acumulada
- * y valor. El valor es payoff del leaf menos costos de los pasos decisivos
- * tomados. Para comparación vs recomendado, se usa el valor del camino con
- * todos los nodos `isOptimal=true`.
- */
-function enumeratePaths(tree: DecisionTreeData): PathRow[] {
-  if (!tree.rootId) return [];
-
-  const rows: PathRow[] = [];
-  const parentById = tree.nodes;
-
-  type Collected = { labels: string[]; ids: string[]; prob: number; cost: number; payoff: number };
-
-  function walk(
-    nodeId: string,
-    accLabels: string[],
-    accIds: string[],
-    accProb: number,
-    accCost: number
-  ): void {
-    const node = parentById[nodeId];
-    if (!node) return;
-    const parent: TreeNode | null = node.parentId ? parentById[node.parentId] : null;
-
-    // Probabilidad: si el padre es chance, esta rama aporta probabilidad.
-    const branchProb = parent?.type === "chance" ? node.probability ?? 0 : 1;
-    const nextProb = accProb * branchProb;
-
-    // Costo: suma todos los costos del camino salvo el root.
-    const branchCost = parent ? node.cost ?? 0 : 0;
-    const nextCost = accCost + branchCost;
-
-    const nextLabels = [...accLabels, node.label];
-    const nextIds = [...accIds, node.id];
-
-    if (node.type === "end" || node.childIds.length === 0) {
-      const payoff = node.payoff ?? 0;
-      const value = payoff - nextCost;
-      collected.push({ labels: nextLabels, ids: nextIds, prob: nextProb, cost: nextCost, payoff });
-      rows.push({
-        label: nextLabels.join(" → "),
-        probability: nextProb,
-        value,
-        diff: 0,
-        isOptimal: false,
-      });
-      return;
-    }
-
-    for (const childId of node.childIds) {
-      walk(childId, nextLabels, nextIds, nextProb, nextCost);
-    }
-  }
-
-  const collected: Collected[] = [];
-  walk(tree.rootId, [], [], 1, 0);
-
-  // Marcar camino óptimo comparando IDs, no labels (evita colisiones con "Sí"/"No"/"Base").
-  const optimalNodeIds = new Set(
-    Object.values(tree.nodes)
-      .filter((n) => n.isOptimal)
-      .map((n) => n.id)
-  );
-
-  for (let i = 0; i < rows.length; i++) {
-    rows[i].isOptimal = collected[i].ids.every((id) => optimalNodeIds.has(id));
-  }
-
-  // Diferencia vs recomendado (el camino óptimo con mayor prob; si hay varios, el primero).
-  const optimalRow = rows.find((r) => r.isOptimal);
-  const reference = optimalRow?.value ?? 0;
-  for (const row of rows) row.diff = row.value - reference;
-
-  return rows.sort((a, b) => (b.isOptimal ? 1 : 0) - (a.isOptimal ? 1 : 0) || b.probability - a.probability);
-}
+// `enumeratePaths` + `PathRow` viven en src/engine/PathEnumeration.ts (shared con el taskpane).
 
 /**
  * Tabla de resumen de caminos (header olive, filas alternas, fila óptima destacada).

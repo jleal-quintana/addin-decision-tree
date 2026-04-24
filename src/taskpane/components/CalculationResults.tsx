@@ -1,9 +1,60 @@
-import React, { useMemo } from "react";
-import { describeOptimalStrategy } from "../../engine/RollbackAnalysis";
+import React, { useCallback, useEffect, useMemo, useState } from "react";
+import { enumeratePaths } from "../../engine/PathEnumeration";
 import { useTree } from "../context/TreeContext";
 
+function formatPctInput(prob: number): string {
+  const pct = prob * 100;
+  return Number.isInteger(pct) ? `${pct}` : pct.toFixed(1).replace(".", ",");
+}
+
+interface AssumptionInputProps {
+  nodeId: string;
+  nodeLabel: string;
+  probability: number;
+  onCommit: (nodeId: string, raw: string) => void;
+}
+
+function AssumptionInput({ nodeId, nodeLabel, probability, onCommit }: AssumptionInputProps) {
+  const [draft, setDraft] = useState<string>(() => formatPctInput(probability));
+  const [focused, setFocused] = useState(false);
+
+  // Sincronizar cuando el valor cambia desde fuera (ej. otra asunción recalcula)
+  // pero NO mientras el usuario está tipeando en este input.
+  useEffect(() => {
+    if (!focused) setDraft(formatPctInput(probability));
+  }, [probability, focused]);
+
+  return (
+    <input
+      type="text"
+      inputMode="decimal"
+      value={draft}
+      onChange={(e) => setDraft(e.target.value)}
+      onFocus={() => setFocused(true)}
+      onBlur={() => {
+        setFocused(false);
+        onCommit(nodeId, draft);
+      }}
+      onKeyDown={(e) => {
+        if (e.key === "Enter") (e.target as HTMLInputElement).blur();
+      }}
+      aria-label={`Probabilidad de ${nodeLabel}`}
+    />
+  );
+}
+
+function formatCurrency(value: number | null | undefined): string {
+  if (value === null || value === undefined) return "—";
+  return `$${value.toLocaleString("es-AR", { maximumFractionDigits: 0 })}`;
+}
+
+function formatPercent(value: number): string {
+  const pct = value * 100;
+  return Number.isInteger(pct) ? `${pct}%` : `${pct.toFixed(1).replace(".", ",")}%`;
+}
+
 export function CalculationResults() {
-  const { state } = useTree();
+  const { state, dispatch } = useTree();
   const { tree } = state;
 
   const hasResults = useMemo(() => {
@@ -11,18 +62,58 @@ export function CalculationResults() {
     return tree.nodes[tree.rootId]?.expectedValue !== null;
   }, [tree]);
 
-  const evMap = useMemo(() => {
-    const map: Record<string, number | null> = {};
-    for (const [id, node] of Object.entries(tree.nodes)) {
-      map[id] = node.expectedValue;
+  const paths = useMemo(() => enumeratePaths(tree), [tree]);
+  const [assumptionsOpen, setAssumptionsOpen] = useState(true);
+
+  const isCost = tree.metadata.mode === "minimize";
+  const rootLabel = isCost ? "Costo esperado" : "Valor esperado";
+
+  const optimalPath = paths.find((p) => p.isOptimal);
+  const alternatives = paths.filter((p) => !p.isOptimal);
+  // Mejor alternativa: según modo, la de mayor valor (Valor) o menor costo (Costo).
+  const bestAlternative = alternatives.reduce<typeof alternatives[number] | null>((best, row) => {
+    if (!best) return row;
+    if (isCost) return row.value < best.value ? row : best;
+    return row.value > best.value ? row : best;
+  }, null);
+
+  const deltaVsAlt = optimalPath && bestAlternative
+    ? (isCost ? bestAlternative.value - optimalPath.value : optimalPath.value - bestAlternative.value)
+    : null;
+
+  // Primera rama elegida: primer nodo del camino óptimo cuyo padre sea una decisión.
+  const recommendedAction = (() => {
+    if (!optimalPath) return "";
+    for (const id of optimalPath.ids) {
+      const node = tree.nodes[id];
+      if (!node?.parentId) continue;
+      const parent = tree.nodes[node.parentId];
+      if (parent?.type === "decision") return node.label;
     }
-    return map;
+    return "";
+  })();
+
+  // Nodos chance = "supuestos" (DESIGN.md §4.3): probabilidades editables.
+  const assumptions = useMemo(() => {
+    return Object.values(tree.nodes)
+      .filter((node) => {
+        if (!node.parentId) return false;
+        const parent = tree.nodes[node.parentId];
+        return parent?.type === "chance";
+      })
+      .sort((a, b) => a.label.localeCompare(b.label, "es"));
   }, [tree]);
 
-  const strategy = useMemo(() => {
-    if (!hasResults) return "";
-    return describeOptimalStrategy(tree, evMap);
-  }, [evMap, hasResults, tree]);
+  const handleProbabilityChange = useCallback(
+    (nodeId: string, raw: string) => {
+      const cleaned = raw.replace(/[^\d.,]/g, "").replace(",", ".");
+      const parsedPct = parseFloat(cleaned);
+      if (!Number.isFinite(parsedPct)) return;
+      const prob = Math.min(Math.max(parsedPct / 100, 0), 1);
+      dispatch({ type: "UPDATE_NODE", nodeId, updates: { probability: prob } });
+    },
+    [dispatch]
+  );
 
   if (!hasResults) {
     return (
@@ -34,74 +125,112 @@ export function CalculationResults() {
           </svg>
         </div>
         <h3>Sin resultados</h3>
-        <p>Armá el árbol en la pestaña "Armar". Los valores se calculan automáticamente.</p>
+        <p>Armá el árbol en la pestaña &quot;Armar&quot;. Los valores se calculan automáticamente.</p>
       </div>
     );
   }
 
-  const rootEV = tree.rootId ? tree.nodes[tree.rootId]?.expectedValue : null;
-  const isPositive = tree.metadata.mode === "maximize" ? (rootEV ?? 0) >= 0 : true;
-  const rootLabel =
-    tree.metadata.mode === "minimize"
-      ? "Costo esperado"
-      : "Valor esperado";
-  const detailMetricLabel = tree.metadata.mode === "minimize" ? "Costo esperado" : "Valor esperado";
-
-  const nodeRows = Object.values(tree.nodes)
-    .filter((node) => node.expectedValue !== null)
-    .sort((a, b) => {
-      if (a.id === tree.rootId) return -1;
-      if (b.id === tree.rootId) return 1;
-      const typeOrder = { decision: 0, chance: 1, end: 2 };
-      return typeOrder[a.type] - typeOrder[b.type];
-    });
+  const rootEV = tree.rootId ? tree.nodes[tree.rootId]?.expectedValue ?? null : null;
 
   return (
-    <div>
-      <div className="result-card">
-        <div className="label">{rootLabel}</div>
-        <div className={`value ${isPositive ? "" : "negative"}`}>
-          ${rootEV?.toLocaleString("es-AR", { maximumFractionDigits: 0 }) ?? "N/A"}
+    <div className="results-v2">
+      {/* 1. Recomendación en caja lime (DESIGN.md §4.3 punto 1) */}
+      <div className="reco-card" role="region" aria-label="Recomendación">
+        <div className="reco-eyebrow">Recomendación</div>
+        <div className="reco-headline">
+          {optimalPath
+            ? recommendedAction
+              ? `Elegir: ${recommendedAction}`
+              : "Camino recomendado resuelto"
+            : "Todavía no hay una decisión clara"}
+        </div>
+        <div className="reco-detail">
+          <span className="reco-kv"><span className="reco-k">{rootLabel}:</span> <strong>{formatCurrency(rootEV)}</strong></span>
+          {deltaVsAlt !== null && bestAlternative && (
+            <span className="reco-kv">
+              <span className="reco-k">{isCost ? "Ahorra" : "Gana"} vs alternativa:</span>{" "}
+              <strong>{formatCurrency(Math.abs(deltaVsAlt))}</strong>
+            </span>
+          )}
         </div>
       </div>
 
-      <div className="results-section">
-        <h3>Camino recomendado</h3>
-        <div className="optimal-strategy">
-          <pre>{strategy}</pre>
-        </div>
-      </div>
-
-      <div className="results-section">
-        <h3>Detalle por nodo</h3>
-        <table className="data-table">
-          <thead>
-            <tr>
-              <th>Nodo</th>
-              <th>Tipo</th>
-              <th style={{ textAlign: "right" }}>{detailMetricLabel}</th>
-            </tr>
-          </thead>
-          <tbody>
-            {nodeRows.map((node) => (
-              <tr key={node.id} className={node.isOptimal ? "optimal" : ""}>
-                <td>
-                  {node.isOptimal && (
-                    <span style={{ color: "var(--qe-verde)", marginRight: 4 }}>●</span>
-                  )}
-                  {node.label}
-                </td>
-                <td style={{ color: "var(--text-muted)", fontSize: 11 }}>
-                  {{ decision: "Decisión", chance: "Incertidumbre", end: "Resultado final" }[node.type]}
-                </td>
-                <td style={{ textAlign: "right", fontFamily: "Montserrat, sans-serif", fontWeight: 600 }}>
-                  ${node.expectedValue?.toLocaleString("es-AR", { maximumFractionDigits: 0 }) ?? "-"}
-                </td>
+      {/* 2. Tabla de caminos (DESIGN.md §4.3 punto 2) */}
+      {paths.length > 0 && (
+        <div className="results-section">
+          <h3>Resumen de caminos</h3>
+          <table className="data-table paths-table">
+            <thead>
+              <tr>
+                <th>Camino</th>
+                <th style={{ textAlign: "right" }}>Prob.</th>
+                <th style={{ textAlign: "right" }}>{rootLabel}</th>
+                <th style={{ textAlign: "right" }}>Vs recomendado</th>
               </tr>
-            ))}
-          </tbody>
-        </table>
-      </div>
+            </thead>
+            <tbody>
+              {paths.map((path) => (
+                <tr key={path.ids.join("-")} className={path.isOptimal ? "optimal" : ""}>
+                  <td>
+                    {path.isOptimal && <span className="reco-dot" aria-label="Recomendado">●</span>}
+                    {path.label}
+                  </td>
+                  <td style={{ textAlign: "right" }}>{formatPercent(path.probability)}</td>
+                  <td style={{ textAlign: "right", fontFamily: "Montserrat, sans-serif", fontWeight: 600 }}>
+                    {formatCurrency(path.value)}
+                  </td>
+                  <td style={{ textAlign: "right" }}>
+                    {path.isOptimal ? "—" : formatCurrency(path.diff)}
+                  </td>
+                </tr>
+              ))}
+            </tbody>
+          </table>
+        </div>
+      )}
+
+      {/* 3. Supuestos collapsible (DESIGN.md §4.3 punto 3) - sensibilidad inline */}
+      {assumptions.length > 0 && (
+        <div className="results-section">
+          <button
+            className="collapsible-header"
+            onClick={() => setAssumptionsOpen((open) => !open)}
+            aria-expanded={assumptionsOpen}
+            type="button"
+          >
+            <span className={`collapsible-chevron ${assumptionsOpen ? "open" : ""}`} aria-hidden>
+              ▸
+            </span>
+            <h3 style={{ margin: 0 }}>Supuestos clave</h3>
+            <span className="collapsible-hint">Ajustá las probabilidades para ver cómo cambia la recomendación</span>
+          </button>
+
+          {assumptionsOpen && (
+            <div className="assumptions-list">
+              {assumptions.map((node) => {
+                const parent = node.parentId ? tree.nodes[node.parentId] : null;
+                return (
+                  <div key={node.id} className="assumption-row">
+                    <div className="assumption-label">
+                      <div className="assumption-node">{node.label}</div>
+                      {parent && <div className="assumption-parent">en {parent.label}</div>}
+                    </div>
+                    <div className="assumption-input">
+                      <AssumptionInput
+                        nodeId={node.id}
+                        nodeLabel={node.label}
+                        probability={node.probability ?? 0}
+                        onCommit={handleProbabilityChange}
+                      />
+                      <span className="assumption-unit">%</span>
+                    </div>
+                  </div>
+                );
+              })}
+            </div>
+          )}
+        </div>
+      )}
     </div>
   );
 }

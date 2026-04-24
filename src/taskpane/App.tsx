@@ -2,6 +2,7 @@ import React, { Component, ReactNode, useCallback, useRef, useState } from "reac
 import { isDebugEnabled } from "../debug/excelDiagnostics";
 import { CalculationResults } from "./components/CalculationResults";
 import { DebugPanel } from "./components/DebugPanel";
+import { HelpPopover } from "./components/HelpPopover";
 import { NodeEditor } from "./components/NodeEditor";
 import { Toolbar } from "./components/Toolbar";
 import { TreeBuilder } from "./components/TreeBuilder";
@@ -41,7 +42,9 @@ type ToastIntent = "success" | "error" | "info";
 function AppInner() {
   const { state, dispatch } = useTree();
   const [toast, setToast] = useState<{ msg: string; type: ToastIntent } | null>(null);
+  const [helpOpen, setHelpOpen] = useState(false);
   const toastTimer = useRef<ReturnType<typeof setTimeout> | null>(null);
+  const helpBtnRef = useRef<HTMLButtonElement>(null);
   const debugEnabled = isDebugEnabled();
 
   const showToast = useCallback(
@@ -60,10 +63,13 @@ function AppInner() {
     { id: "results" as const, label: "Resultado" },
   ];
 
-  const activeTab = state.activeTab === "sensitivity" ? "build" : state.activeTab;
+  // Defensa: si hay estado persistido viejo con "sensitivity" (tab ya eliminada),
+  // caemos a "build" en runtime. El union TS no protege datos hidratados de disco.
+  const rawTab: string = state.activeTab;
+  const activeTab: "build" | "results" = rawTab === "results" ? "results" : "build";
 
   return (
-    <div className="app-container">
+    <div className="app-container" style={{ position: "relative" }}>
       {toast && (
         <div className={`toast toast--${toast.type}`} role="status">
           {toast.msg}
@@ -75,8 +81,21 @@ function AppInner() {
           <h1>Análisis de decisión</h1>
           <div className="subtitle">Quintana Energy</div>
         </div>
+        <button
+          ref={helpBtnRef}
+          type="button"
+          className="help-btn"
+          onClick={() => setHelpOpen((open) => !open)}
+          aria-expanded={helpOpen}
+          aria-label="Ayuda sobre las formas del árbol"
+          title="¿Cómo leer el árbol?"
+        >
+          ?
+        </button>
         <div className="brand-bar" />
       </div>
+
+      <HelpPopover open={helpOpen} onClose={() => setHelpOpen(false)} triggerRef={helpBtnRef} />
 
       <Toolbar showToast={showToast} drawApi={drawApi} />
 
