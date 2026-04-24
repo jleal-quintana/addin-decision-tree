@@ -1,14 +1,17 @@
-import { getOptimalChildId } from "../engine/RollbackAnalysis";
+import { runTrackedOperation } from "../debug/excelDiagnostics";
 import { writeCalculationModel } from "../excel/CalculationSheet";
 import { colLetter, rangeAddr } from "../excel/ExcelAddress";
-import { TREE_SHEET_NAME } from "../excel/WorkbookConstants";
-import { CalcSheetMetadata, DecisionTreeData, LayoutResult } from "../models/types";
+import { CALC_SHEET_NAME, TREE_SHEET_NAME } from "../excel/WorkbookConstants";
 import {
-  SHAPE_PREFIX,
-  GRID,
-  COL_WIDTH,
-  ROW_HEIGHT,
-} from "./StyleConfig";
+  CalcSheetMetadata,
+  DecisionTreeData,
+  LayoutNode,
+  LayoutResult,
+  RenderModel,
+  RenderNodeContent,
+} from "../models/types";
+import { RENDER_TOKENS } from "../rendering/designTokens";
+import { COL_WIDTH, EDGE_COLORS, GRID, ROW_HEIGHT, SHAPE_PREFIX } from "./StyleConfig";
 
 type ShapeType = "decision" | "chance" | "end";
 
@@ -23,116 +26,72 @@ interface NodeTheme {
   fill: string;
   border: string;
   text: string;
-  accent: string;
   geometricType: Excel.GeometricShapeType | "Rectangle" | "Ellipse" | "RoundRectangle";
 }
 
 const NODE_THEMES: Record<ShapeType, NodeTheme> = {
   decision: {
-    fill: "#33492D",
-    border: "#1B4B6C",
-    text: "#FFFFFF",
-    accent: "#E2FF87",
+    fill: RENDER_TOKENS.decision.fill,
+    border: RENDER_TOKENS.decision.border,
+    text: RENDER_TOKENS.decision.text,
     geometricType: "Rectangle",
   },
   chance: {
-    fill: "#DAE0E5",
-    border: "#1B4B6C",
-    text: "#1a1a1a",
-    accent: "#6B7B38",
+    fill: RENDER_TOKENS.chance.fill,
+    border: RENDER_TOKENS.chance.border,
+    text: RENDER_TOKENS.chance.text,
     geometricType: "Ellipse",
   },
   end: {
-    fill: "#FFEAC6",
-    border: "#AD977D",
-    text: "#1a1a1a",
-    accent: "#6B7B38",
+    fill: RENDER_TOKENS.end.fill,
+    border: RENDER_TOKENS.end.border,
+    text: RENDER_TOKENS.end.text,
     geometricType: "RoundRectangle",
   },
 };
 
-function currency(value: number | null | undefined): string {
-  if (value === null || value === undefined) return "N/D";
-  return `$${value.toLocaleString("es-AR", { maximumFractionDigits: 0 })}`;
+function writeRenderDebug(sheet: Excel.Worksheet, title: string, detail = ""): void {
+  sheet.getRange("A3").values = [[title]];
+  sheet.getRange("A4").values = [[detail]];
+  sheet.getRange("A3:A4").format.font.name = "Calibri";
+  sheet.getRange("A3:A4").format.font.size = 10;
+  sheet.getRange("A3:A4").format.font.color = "#8B1E3F";
 }
 
-function amountLabel(tree: DecisionTreeData): string {
-  return tree.metadata.mode === "minimize" ? "Costo esperado" : "VEN";
+function setRowBandValue(
+  sheet: Excel.Worksheet,
+  col: number,
+  row: number,
+  cols: number,
+  value: string
+): Excel.Range {
+  const band = sheet.getRange(rangeAddr(col, row, cols, 1));
+  band.merge();
+  sheet.getCell(row, col).values = [[value]];
+  return band;
 }
 
-function getNodeText(tree: DecisionTreeData, node: LayoutResult["nodes"][number]): string {
-  const lines = [node.label, `${amountLabel(tree)}: ${currency(node.expectedValue)}`];
-
-  if (node.type === "end") {
-    lines.push(
-      `${tree.metadata.mode === "minimize" ? "Costo term." : "VAN term."}: ${currency(node.payoff)}`
-    );
-  }
-
-  return lines.join("\n");
-}
-
-function getEdgeLabel(tree: DecisionTreeData, edge: LayoutResult["edges"][number]): string {
-  const child = tree.nodes[edge.toId];
-  if (!child) return "";
-
-  const parts: string[] = [];
-  if (edge.probability !== null && edge.probability > 0) {
-    parts.push(`${(edge.probability * 100).toFixed(0)}%`);
-  }
-  if (child.cost !== null && child.cost !== 0) {
-    parts.push(`Costo ${currency(child.cost)}`);
-  }
-  if (child.time) {
-    parts.push(child.time);
-  }
-
-  return parts.join("\n");
-}
-
-function setTransparent(shape: Excel.Shape): void {
-  shape.fill.setSolidColor("#FFFFFF");
-  shape.fill.transparency = 1;
-  shape.lineFormat.visible = false;
-}
-
-function styleShapeText(
-  shape: Excel.Shape,
-  color: string,
-  fontName: string,
-  fontSize: number,
-  bold = false
-): void {
-  shape.textFrame.horizontalAlignment = "Center";
-  shape.textFrame.verticalAlignment = "Middle";
-  shape.textFrame.leftMargin = 8;
-  shape.textFrame.rightMargin = 8;
-  shape.textFrame.topMargin = 6;
-  shape.textFrame.bottomMargin = 6;
-  shape.textFrame.autoSizeSetting = "AutoSizeTextToFitShape";
-  shape.textFrame.textRange.font.color = color;
-  shape.textFrame.textRange.font.name = fontName;
-  shape.textFrame.textRange.font.size = fontSize;
-  shape.textFrame.textRange.font.bold = bold;
-}
-
-async function getTreeSheet(context: Excel.RequestContext): Promise<Excel.Worksheet> {
-  const sheet = context.workbook.worksheets.getItemOrNullObject(TREE_SHEET_NAME);
+async function getOrCreateSheet(
+  context: Excel.RequestContext,
+  name: string,
+  visibility: Excel.SheetVisibility | null
+): Promise<Excel.Worksheet> {
+  const existing = context.workbook.worksheets.getItemOrNullObject(name);
+  existing.load("name");
   await context.sync();
-  if (!sheet.isNullObject) {
-    sheet.activate();
-    return sheet;
-  }
 
-  const created = context.workbook.worksheets.add(TREE_SHEET_NAME);
-  created.activate();
-  return created;
+  const sheet = existing.isNullObject ? context.workbook.worksheets.add(name) : existing;
+  if (visibility !== null) {
+    sheet.visibility = visibility;
+  }
+  return sheet;
 }
 
-async function clearSheet(sheet: Excel.Worksheet): Promise<void> {
+async function clearWorksheet(sheet: Excel.Worksheet): Promise<void> {
   const shapes = sheet.shapes;
   shapes.load("items/name");
   const usedRange = sheet.getUsedRangeOrNullObject();
+  usedRange.load("address");
   await sheet.context.sync();
 
   for (const shape of shapes.items) {
@@ -148,68 +107,105 @@ async function clearSheet(sheet: Excel.Worksheet): Promise<void> {
   await sheet.context.sync();
 }
 
-function createNodeShape(
+function renderTitle(sheet: Excel.Worksheet, tree: DecisionTreeData): void {
+  const titleRange = setRowBandValue(sheet, GRID.startCol, 0, 12, tree.metadata.name);
+  titleRange.format.font.name = "Montserrat";
+  titleRange.format.font.size = 16;
+  titleRange.format.font.bold = true;
+  titleRange.format.font.color = RENDER_TOKENS.decision.fill;
+}
+
+function createNodeMarker(
   sheet: Excel.Worksheet,
-  tree: DecisionTreeData,
-  node: LayoutResult["nodes"][number],
+  node: RenderNodeContent,
   rect: NodeRect
 ): Excel.Shape {
   const theme = NODE_THEMES[node.type];
-  const shape = sheet.shapes.addGeometricShape(theme.geometricType);
+  const marker = sheet.shapes.addGeometricShape(theme.geometricType);
+  const markerWidth = Math.max(18, Math.min(28, rect.width * 0.18));
+  const markerHeight = Math.max(18, Math.min(28, rect.height * 0.28));
 
-  shape.name = `${SHAPE_PREFIX}NODE_${node.id}`;
-  shape.left = rect.left;
-  shape.top = rect.top;
-  shape.width = rect.width;
-  shape.height = rect.height;
-  shape.placement = "OneCell";
-  shape.fill.setSolidColor(theme.fill);
-  shape.lineFormat.color = node.isOptimal ? "#6B7B38" : theme.border;
-  shape.lineFormat.weight = node.isOptimal ? 3 : 1.5;
-  shape.lineFormat.visible = true;
-  shape.textFrame.textRange.text = getNodeText(tree, node);
-  styleShapeText(shape, theme.text, "Montserrat", node.type === "chance" ? 10 : 10.5, true);
-
-  return shape;
+  marker.name = `${SHAPE_PREFIX}NODE_${node.id}`;
+  marker.left = rect.left + 4;
+  marker.top = rect.top + 10;
+  marker.width = markerWidth;
+  marker.height = markerHeight;
+  marker.placement = "OneCell";
+  marker.fill.setSolidColor(theme.fill);
+  marker.lineFormat.color = node.isOptimal ? RENDER_TOKENS.accent : theme.border;
+  marker.lineFormat.weight = node.isOptimal ? EDGE_COLORS.optimalWeight : 1.25;
+  marker.lineFormat.visible = true;
+  return marker;
 }
 
-function createNodeNote(
+function writeNodeCells(
   sheet: Excel.Worksheet,
-  node: LayoutResult["nodes"][number],
-  rect: NodeRect
+  layoutNode: LayoutNode,
+  renderNode: RenderNodeContent
 ): void {
-  const lines: string[] = [];
-  if (node.time) lines.push(node.time);
-  for (const [key, value] of Object.entries(node.customFields ?? {})) {
-    if (value === null || value === undefined || value === "") continue;
-    lines.push(`${key}: ${value}`);
-  }
+  const theme = NODE_THEMES[renderNode.type];
+  const startCol = layoutNode.col + 1;
+  const width = Math.max(GRID.nodeCols - 1, 3);
+  const titleRange = setRowBandValue(sheet, startCol, layoutNode.row, width, renderNode.title);
+  const valueRange = setRowBandValue(
+    sheet,
+    startCol,
+    layoutNode.row + 1,
+    width,
+    renderNode.primaryValue
+  );
+  const detailRange = setRowBandValue(
+    sheet,
+    startCol,
+    layoutNode.row + 2,
+    width,
+    renderNode.secondaryLines.join(" | ")
+  );
+  const noteRange = setRowBandValue(
+    sheet,
+    startCol,
+    layoutNode.row + 3,
+    width,
+    renderNode.noteLines.join(" | ")
+  );
 
-  if (lines.length === 0) return;
+  titleRange.format.fill.color = renderNode.isOptimal ? "#E2FF87" : theme.fill;
+  valueRange.format.fill.color = "#FFFFFF";
+  detailRange.format.fill.color = "#F7F8F9";
+  noteRange.format.fill.color = "#FFFFFF";
 
-  const note = sheet.shapes.addTextBox(lines.slice(0, 3).join("\n"));
-  note.name = `${SHAPE_PREFIX}NOTE_${node.id}`;
-  note.left = rect.left;
-  note.top = rect.top + rect.height + 4;
-  note.width = rect.width;
-  note.height = 34;
-  note.placement = "OneCell";
-  setTransparent(note);
-  styleShapeText(note, "#555555", "Inter", 8, false);
+  titleRange.format.font.name = "Calibri";
+  titleRange.format.font.size = 11;
+  titleRange.format.font.bold = true;
+  titleRange.format.font.color = renderNode.isOptimal ? "#33492D" : theme.text;
+
+  valueRange.format.font.name = "Calibri";
+  valueRange.format.font.size = 10;
+  valueRange.format.font.bold = true;
+  valueRange.format.font.color = "#1A1A1A";
+
+  detailRange.format.font.name = "Calibri";
+  detailRange.format.font.size = 9;
+  detailRange.format.font.color = RENDER_TOKENS.edge;
+
+  noteRange.format.font.name = "Calibri";
+  noteRange.format.font.size = 8;
+  noteRange.format.font.color = RENDER_TOKENS.muted;
 }
 
 function createEdgeConnector(
   sheet: Excel.Worksheet,
-  tree: DecisionTreeData,
   edge: LayoutResult["edges"][number],
   fromRect: NodeRect,
   toRect: NodeRect
 ): void {
-  const line = sheet.shapes.addLine(
-    fromRect.left + fromRect.width,
-    fromRect.top + fromRect.height / 2,
-    toRect.left,
-    toRect.top + toRect.height / 2,
+  const line = (sheet.shapes as unknown as {
+    addLine: (x1: number, y1: number, x2: number, y2: number, kind: string) => Excel.Shape;
+  }).addLine(
+    fromRect.left + 20,
+    fromRect.top + 24,
+    toRect.left + 4,
+    toRect.top + 24,
     "Elbow"
   );
 
@@ -219,139 +215,184 @@ function createEdgeConnector(
   line.line.endArrowheadLength = "Medium";
   line.line.endArrowheadWidth = "Medium";
   line.line.beginArrowheadStyle = "None";
-  line.lineFormat.color = edge.isOptimal ? "#6B7B38" : "#1B4B6C";
-  line.lineFormat.weight = edge.isOptimal ? 2.75 : 1.5;
+  line.lineFormat.color = edge.isOptimal ? EDGE_COLORS.optimal : EDGE_COLORS.normal;
+  line.lineFormat.weight = edge.isOptimal ? EDGE_COLORS.optimalWeight : EDGE_COLORS.normalWeight;
   line.lineFormat.visible = true;
-
-  const labelText = getEdgeLabel(tree, edge);
-  if (!labelText) return;
-
-  const label = sheet.shapes.addTextBox(labelText);
-  label.name = `${SHAPE_PREFIX}EDGE_LABEL_${edge.fromId}_${edge.toId}`;
-  label.left = (fromRect.left + fromRect.width + toRect.left) / 2 - 36;
-  label.top = Math.min(fromRect.top + fromRect.height / 2, toRect.top + toRect.height / 2) - 18;
-  label.width = 72;
-  label.height = labelText.includes("\n") ? 34 : 18;
-  label.placement = "OneCell";
-  label.fill.setSolidColor("#FFFFFF");
-  label.fill.transparency = 0.2;
-  label.lineFormat.visible = false;
-  styleShapeText(label, "#1B4B6C", "Inter", 8, true);
 }
 
-function renderTitle(sheet: Excel.Worksheet, tree: DecisionTreeData): void {
-  const titleRange = sheet.getRange(rangeAddr(GRID.startCol, 0, 8, 1));
-  titleRange.merge();
-  sheet.getCell(0, GRID.startCol).values = [[tree.metadata.name]];
-  titleRange.format.font.name = "Montserrat";
-  titleRange.format.font.size = 15;
-  titleRange.format.font.bold = true;
-  titleRange.format.font.color = "#33492D";
-}
-
-function createSummaryBox(
+function writeEdgeLabelCells(
   sheet: Excel.Worksheet,
-  tree: DecisionTreeData,
-  nodeRects: Record<string, NodeRect>
+  edge: LayoutResult["edges"][number],
+  edgeLabel: string
 ): void {
-  const rootValue = tree.rootId ? tree.nodes[tree.rootId]?.expectedValue ?? null : null;
-  const bestChildId =
-    tree.rootId
-      ? getOptimalChildId(
-          tree,
-          tree.rootId,
-          Object.fromEntries(Object.entries(tree.nodes).map(([id, node]) => [id, node.expectedValue]))
-        )
-      : null;
-  const rootRect = tree.rootId ? nodeRects[tree.rootId] : null;
-  const baseLeft = rootRect ? rootRect.left + rootRect.width + 170 : 560;
-  const baseTop = rootRect ? Math.max(50, rootRect.top - 10) : 70;
+  if (!edgeLabel) return;
 
-  const card = sheet.shapes.addGeometricShape("RoundRectangle");
-  card.name = `${SHAPE_PREFIX}SUMMARY`;
-  card.left = baseLeft;
-  card.top = baseTop;
-  card.width = 220;
-  card.height = 112;
-  card.placement = "OneCell";
-  card.fill.setSolidColor("#FFFFFF");
-  card.lineFormat.color = "#6B7B38";
-  card.lineFormat.weight = 2;
-  card.textFrame.textRange.text = [
-    tree.metadata.mode === "minimize" ? "Resumen de costo" : "Resumen de valor",
-    `${amountLabel(tree)} raiz: ${currency(rootValue)}`,
-    `Elegir: ${bestChildId ? tree.nodes[bestChildId]?.label ?? "-" : "-"}`,
-  ].join("\n");
-  styleShapeText(card, "#33492D", "Montserrat", 10, true);
+  const row = Math.min(edge.fromMidRow, edge.toMidRow);
+  const labelRange = setRowBandValue(sheet, edge.connectorCol, row, 3, edgeLabel.replace(/\n/g, " | "));
+  labelRange.format.font.name = "Calibri";
+  labelRange.format.font.size = 8;
+  labelRange.format.font.color = edge.isOptimal ? EDGE_COLORS.optimal : EDGE_COLORS.normal;
+}
+
+function createSummaryShape(sheet: Excel.Worksheet, col: number, row: number): void {
+  const shape = sheet.shapes.addGeometricShape("RoundRectangle");
+  shape.name = `${SHAPE_PREFIX}SUMMARY`;
+  shape.left = col * COL_WIDTH + 2;
+  shape.top = row * ROW_HEIGHT + 4;
+  shape.width = 16;
+  shape.height = 16;
+  shape.placement = "OneCell";
+  shape.fill.setSolidColor(RENDER_TOKENS.accent);
+  shape.lineFormat.color = RENDER_TOKENS.accent;
+  shape.lineFormat.visible = true;
+}
+
+function writeSummaryCells(
+  sheet: Excel.Worksheet,
+  renderModel: RenderModel,
+  layout: LayoutResult
+): void {
+  if (!renderModel.summary) return;
+
+  const startCol = Math.max(layout.maxCol + GRID.colGap + 2, 20);
+  const title = setRowBandValue(sheet, startCol, 2, 8, renderModel.summary.title);
+  const value = setRowBandValue(sheet, startCol, 3, 8, renderModel.summary.rootValue);
+  const action = setRowBandValue(sheet, startCol, 4, 8, renderModel.summary.recommendedAction);
+
+  title.format.font.name = "Calibri";
+  title.format.font.size = 11;
+  title.format.font.bold = true;
+  title.format.font.color = RENDER_TOKENS.decision.fill;
+
+  value.format.font.name = "Calibri";
+  value.format.font.size = 10;
+  value.format.font.bold = true;
+
+  action.format.font.name = "Calibri";
+  action.format.font.size = 9;
+  action.format.font.color = RENDER_TOKENS.edge;
+
+  createSummaryShape(sheet, startCol - 1, 2);
 }
 
 export async function renderToExcel(
   layout: LayoutResult,
-  calcSheet: CalcSheetMetadata,
-  tree: DecisionTreeData
+  renderModel: RenderModel,
+  calcSheetMetadata: CalcSheetMetadata,
+  tree: DecisionTreeData,
+  _options: { debug?: boolean } = {}
 ): Promise<void> {
-  await Excel.run(async (context) => {
-    const sheet = await getTreeSheet(context);
-    await clearSheet(sheet);
+  await runTrackedOperation(
+    "renderToExcel",
+    { nodes: layout.nodes.length, edges: layout.edges.length },
+    async () => {
+      await Excel.run(async (context) => {
+        const treeSheet = await getOrCreateSheet(context, TREE_SHEET_NAME, null);
+        const calcSheet = await getOrCreateSheet(context, CALC_SHEET_NAME, Excel.SheetVisibility.hidden);
+        treeSheet.activate();
 
-    const lastCol = Math.max(layout.maxCol + GRID.colGap + 18, 90);
-    const lastRow = layout.maxRow + GRID.rowGap + 20;
-    sheet.getRange(`A:${colLetter(lastCol)}`).format.columnWidth = COL_WIDTH;
-    sheet.getRange(`1:${lastRow}`).format.rowHeight = ROW_HEIGHT;
-    sheet.showGridlines = false;
+        await clearWorksheet(treeSheet);
+        await clearWorksheet(calcSheet);
 
-    renderTitle(sheet, tree);
-    writeCalculationModel(sheet, tree, calcSheet);
+        const lastCol = Math.max(layout.maxCol + GRID.colGap + 24, 110);
+        const lastRow = layout.maxRow + GRID.rowGap + 24;
+        treeSheet.getRange(`A:${colLetter(lastCol)}`).format.columnWidth = COL_WIDTH;
+        treeSheet.getRange(`1:${lastRow}`).format.rowHeight = ROW_HEIGHT;
+        treeSheet.showGridlines = true;
 
-    const rangeByNodeId: Record<string, Excel.Range> = {};
-    for (const node of layout.nodes) {
-      const range = sheet.getRange(rangeAddr(node.col, node.row, GRID.nodeCols, GRID.nodeRows));
-      range.load("left,top,width,height");
-      rangeByNodeId[node.id] = range;
+        renderTitle(treeSheet, tree);
+        writeRenderDebug(treeSheet, "Render iniciado");
+        await writeCalculationModel(calcSheet, tree, calcSheetMetadata);
+
+        const rangeByNodeId: Record<string, Excel.Range> = {};
+        for (const node of layout.nodes) {
+          const range = treeSheet.getRange(rangeAddr(node.col, node.row, 1, GRID.nodeRows));
+          range.load("left,top,width,height");
+          rangeByNodeId[node.id] = range;
+        }
+
+        await context.sync();
+
+        const nodeRects: Record<string, NodeRect> = {};
+        for (const node of layout.nodes) {
+          const range = rangeByNodeId[node.id];
+          nodeRects[node.id] = {
+            left: range.left,
+            top: range.top,
+            width: range.width,
+            height: range.height,
+          };
+        }
+
+        const renderNodeById = Object.fromEntries(renderModel.nodes.map((node) => [node.id, node]));
+        const renderEdgeByKey = Object.fromEntries(
+          renderModel.edges.map((edge) => [`${edge.fromId}-${edge.toId}`, edge])
+        );
+
+        for (const node of layout.nodes) {
+          const rect = nodeRects[node.id];
+          const renderNode = renderNodeById[node.id];
+          try {
+            writeRenderDebug(treeSheet, `Nodo ${node.id}`, "Marker + celdas");
+            createNodeMarker(treeSheet, renderNode, rect);
+            writeNodeCells(treeSheet, node, renderNode);
+            await context.sync();
+          } catch (error) {
+            writeRenderDebug(
+              treeSheet,
+              `Error en nodo ${node.id}`,
+              error instanceof Error ? error.message : String(error)
+            );
+            await context.sync();
+            throw error;
+          }
+        }
+
+        for (const edge of layout.edges) {
+          const fromRect = nodeRects[edge.fromId];
+          const toRect = nodeRects[edge.toId];
+          if (!fromRect || !toRect) continue;
+
+          const renderEdge = renderEdgeByKey[`${edge.fromId}-${edge.toId}`];
+          try {
+            writeRenderDebug(treeSheet, `Conector ${edge.fromId}->${edge.toId}`);
+            createEdgeConnector(treeSheet, edge, fromRect, toRect);
+            writeEdgeLabelCells(treeSheet, edge, renderEdge?.label ?? "");
+            await context.sync();
+          } catch (error) {
+            writeRenderDebug(
+              treeSheet,
+              `Error en conector ${edge.fromId}->${edge.toId}`,
+              error instanceof Error ? error.message : String(error)
+            );
+            await context.sync();
+            throw error;
+          }
+        }
+
+        writeRenderDebug(treeSheet, "Resumen");
+        writeSummaryCells(treeSheet, renderModel, layout);
+        await context.sync();
+      });
     }
-
-    // Sync 1: commit formatting + calc model, load range positions
-    await context.sync();
-
-    const nodeRects: Record<string, NodeRect> = {};
-    for (const node of layout.nodes) {
-      const range = rangeByNodeId[node.id];
-      nodeRects[node.id] = {
-        left: range.left,
-        top: range.top,
-        width: range.width,
-        height: range.height,
-      };
-    }
-
-    // Phase 2: create node shapes
-    for (const node of layout.nodes) {
-      const rect = nodeRects[node.id];
-      createNodeShape(sheet, tree, node, rect);
-      createNodeNote(sheet, node, rect);
-    }
-
-    await context.sync();
-
-    // Phase 3: create edge connectors (separate batch for robustness)
-    for (const edge of layout.edges) {
-      const fromRect = nodeRects[edge.fromId];
-      const toRect = nodeRects[edge.toId];
-      if (!fromRect || !toRect) continue;
-      createEdgeConnector(sheet, tree, edge, fromRect, toRect);
-    }
-
-    createSummaryBox(sheet, tree, nodeRects);
-    await context.sync();
-  });
+  );
 }
 
 export async function clearRenderedSheets(): Promise<void> {
   await Excel.run(async (context) => {
-    const sheet = context.workbook.worksheets.getItemOrNullObject(TREE_SHEET_NAME);
+    const treeSheet = context.workbook.worksheets.getItemOrNullObject(TREE_SHEET_NAME);
+    treeSheet.load("name");
+    const calcSheet = context.workbook.worksheets.getItemOrNullObject(CALC_SHEET_NAME);
+    calcSheet.load("name");
     await context.sync();
-    if (sheet.isNullObject) return;
 
-    await clearSheet(sheet);
+    if (!treeSheet.isNullObject) {
+      await clearWorksheet(treeSheet);
+    }
+    if (!calcSheet.isNullObject) {
+      await clearWorksheet(calcSheet);
+      calcSheet.visibility = Excel.SheetVisibility.hidden;
+      await context.sync();
+    }
   });
 }

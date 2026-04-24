@@ -124,8 +124,16 @@ export function SensitivityPanel() {
                   <YAxis fontSize={10}
                          tickFormatter={(v: number) => `$${(v / 1000).toFixed(0)}K`} />
                   <Tooltip
-                    formatter={(value: number) => `$${value.toLocaleString("es-AR", { maximumFractionDigits: 0 })}`}
-                    labelFormatter={(label: number) => selectedParam?.kind === "probability" ? `p = ${(label * 100).toFixed(1)}%` : `$${label.toLocaleString("es-AR")}`}
+                    formatter={(value) => {
+                      const numericValue = typeof value === "number" ? value : Number(value ?? 0);
+                      return `$${numericValue.toLocaleString("es-AR", { maximumFractionDigits: 0 })}`;
+                    }}
+                    labelFormatter={(label) => {
+                      const numericLabel = typeof label === "number" ? label : Number(label ?? 0);
+                      return selectedParam?.kind === "probability"
+                        ? `p = ${(numericLabel * 100).toFixed(1)}%`
+                        : `$${numericLabel.toLocaleString("es-AR")}`;
+                    }}
                   />
                   <Legend fontSize={10} />
                   {decisionLabels.map((label, i) => (

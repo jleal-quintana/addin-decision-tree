@@ -1,84 +1,127 @@
 import React, { useMemo } from "react";
-import { useTree } from "../context/TreeContext";
+import { buildRenderModel } from "../../rendering/renderModel";
+import { PREVIEW_CELL, RENDER_TOKENS } from "../../rendering/designTokens";
 import { computeLayout } from "../../renderer/TreeLayoutEngine";
 import { GRID } from "../../renderer/StyleConfig";
-
-// SVG units per grid cell
-const CW = 35;
-const CH = 15;
+import { useTree } from "../context/TreeContext";
 
 export function TreePreview() {
   const { state } = useTree();
+
   const layout = useMemo(() => computeLayout(state.tree), [state.tree]);
+  const renderModel = useMemo(() => buildRenderModel(state.tree, layout), [layout, state.tree]);
 
   if (layout.nodes.length === 0) return null;
 
-  const pad = 15;
-  const vw = (layout.maxCol + GRID.colGap + 2) * CW + pad * 2;
-  const vh = (layout.maxRow + GRID.rowGap + 2) * CH + pad * 2;
+  const nodeById = Object.fromEntries(renderModel.nodes.map((node) => [node.id, node]));
+  const edgeByKey = Object.fromEntries(
+    renderModel.edges.map((edge) => [`${edge.fromId}-${edge.toId}`, edge])
+  );
 
-  const nodeW = GRID.nodeCols * CW;
-  const nodeH = GRID.nodeRows * CH;
+  const pad = 16;
+  const cellWidth = PREVIEW_CELL.width;
+  const cellHeight = PREVIEW_CELL.height;
+  const viewWidth = (layout.maxCol + GRID.colGap + 4) * cellWidth + pad * 2;
+  const viewHeight = (layout.maxRow + GRID.rowGap + 4) * cellHeight + pad * 2;
+  const nodeWidth = GRID.nodeCols * cellWidth;
+  const nodeHeight = GRID.nodeRows * cellHeight;
 
   return (
     <div className="mini-preview">
-      <div className="mini-preview-header">Vista previa</div>
-      <svg width="100%" height={Math.min(180, vh * 0.65)}
-           viewBox={`0 0 ${vw} ${vh}`} preserveAspectRatio="xMidYMid meet"
-           style={{ display: "block", padding: 4 }}>
+      <div className="mini-preview-header">Vista previa aproximada de Excel</div>
+      <svg
+        width="100%"
+        height={Math.min(220, viewHeight * 0.65)}
+        viewBox={`0 0 ${viewWidth} ${viewHeight}`}
+        preserveAspectRatio="xMidYMid meet"
+        style={{ display: "block", padding: 4, background: RENDER_TOKENS.previewBg }}
+      >
+        {layout.edges.map((edge) => {
+          const renderEdge = edgeByKey[`${edge.fromId}-${edge.toId}`];
+          const x1 = pad + (edge.fromCol + GRID.nodeCols) * cellWidth;
+          const y1 = pad + (edge.fromRow + GRID.nodeRows / 2) * cellHeight;
+          const x2 = pad + edge.toCol * cellWidth;
+          const y2 = pad + (edge.toRow + GRID.nodeRows / 2) * cellHeight;
 
-        {/* Edges */}
-        {layout.edges.map((e) => {
-          const color = e.isOptimal ? "#6B7B38" : "#555";
-          const w = e.isOptimal ? 1.5 : 0.7;
-          const x1 = pad + (e.fromCol + GRID.nodeCols) * CW;
-          const y1 = pad + (e.fromRow + GRID.nodeRows / 2) * CH;
-          const x2 = pad + e.toCol * CW;
-          const y2 = pad + (e.toRow + GRID.nodeRows / 2) * CH;
           return (
-            <g key={`${e.fromId}-${e.toId}`}>
-              <line x1={x1} y1={y1} x2={x2} y2={y2} stroke={color} strokeWidth={w} />
-              {e.probability !== null && e.probability > 0 && (
-                <text x={(x1 + x2) / 2} y={(y1 + y2) / 2 - 3}
-                      fontSize={4} fill="#1B4B6C" textAnchor="middle" fontStyle="italic" fontFamily="Inter, sans-serif">
-                  {(e.probability * 100).toFixed(0)}%
+            <g key={`${edge.fromId}-${edge.toId}`}>
+              <line
+                x1={x1}
+                y1={y1}
+                x2={x2}
+                y2={y2}
+                stroke={edge.isOptimal ? RENDER_TOKENS.accent : RENDER_TOKENS.edge}
+                strokeWidth={edge.isOptimal ? 2.2 : 1.2}
+              />
+              {renderEdge?.label && (
+                <text
+                  x={(x1 + x2) / 2}
+                  y={(y1 + y2) / 2 - 6}
+                  fontSize={4.3}
+                  fill={RENDER_TOKENS.edge}
+                  textAnchor="middle"
+                  fontFamily="Inter, sans-serif"
+                >
+                  {renderEdge.label.split("\n")[0]}
                 </text>
               )}
             </g>
           );
         })}
 
-        {/* Nodes */}
-        {layout.nodes.map((n) => {
-          const x = pad + n.col * CW;
-          const y = pad + n.row * CH;
-          const cx = x + nodeW / 2;
-          const isOpt = n.isOptimal;
-
-          const colors: Record<string, { bg: string; fg: string }> = {
-            decision: { bg: "#6B7B38", fg: "#fff" },
-            chance: { bg: "#DAE0E5", fg: "#1a1a1a" },
-            end: { bg: "#33492D", fg: "#fff" },
-          };
-          const c = colors[n.type] || colors.decision;
+        {layout.nodes.map((layoutNode) => {
+          const renderNode = nodeById[layoutNode.id];
+          const token = RENDER_TOKENS[layoutNode.type];
+          const x = pad + layoutNode.col * cellWidth;
+          const y = pad + layoutNode.row * cellHeight;
+          const titleY = y + 14;
+          const primaryY = y + 28;
+          const secondaryY = y + 40;
 
           return (
-            <g key={n.id}>
-              {/* Header */}
-              <rect x={x} y={y} width={nodeW} height={nodeH / 2} rx={1}
-                    fill={c.bg} stroke={isOpt ? "#6B7B38" : "#999"} strokeWidth={isOpt ? 1 : 0.4} />
-              <text x={cx} y={y + nodeH / 4 + 1.5} textAnchor="middle"
-                    fontSize={3.5} fill={c.fg} fontFamily="Montserrat, sans-serif" fontWeight="bold">
-                {n.label.length > 16 ? n.label.slice(0, 16) + ".." : n.label}
+            <g key={layoutNode.id}>
+              <rect
+                x={x}
+                y={y}
+                width={nodeWidth}
+                height={nodeHeight}
+                rx={layoutNode.type === "chance" ? 28 : 8}
+                fill={token.fill}
+                stroke={layoutNode.isOptimal ? RENDER_TOKENS.accent : token.border}
+                strokeWidth={layoutNode.isOptimal ? 2.2 : 1}
+              />
+              <text
+                x={x + nodeWidth / 2}
+                y={titleY}
+                textAnchor="middle"
+                fontSize={4.8}
+                fill={token.text}
+                fontFamily="Montserrat, sans-serif"
+                fontWeight="700"
+              >
+                {renderNode.title}
               </text>
-
-              {/* Value */}
-              <rect x={x} y={y + nodeH / 2} width={nodeW} height={nodeH / 2} rx={1}
-                    fill={isOpt ? "#E2FF87" : "#f8f8f8"} stroke={isOpt ? "#6B7B38" : "#999"} strokeWidth={isOpt ? 1 : 0.4} />
-              {n.expectedValue !== null && (
-                <text x={cx} y={y + nodeH * 3 / 4 + 1.5} textAnchor="middle"
-                      fontSize={3.2} fill="#33492D" fontFamily="Inter, sans-serif" fontWeight="bold">
-                  ${n.expectedValue.toLocaleString("es-AR", { maximumFractionDigits: 0 })}
+              <text
+                x={x + nodeWidth / 2}
+                y={primaryY}
+                textAnchor="middle"
+                fontSize={4.1}
+                fill={token.text}
+                fontFamily="Inter, sans-serif"
+                fontWeight="600"
+              >
+                {renderNode.primaryValue}
+              </text>
+              {renderNode.secondaryLines[0] && (
+                <text
+                  x={x + nodeWidth / 2}
+                  y={secondaryY}
+                  textAnchor="middle"
+                  fontSize={3.7}
+                  fill={token.text}
+                  fontFamily="Inter, sans-serif"
+                >
+                  {renderNode.secondaryLines[0]}
                 </text>
               )}
             </g>

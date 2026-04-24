@@ -1,12 +1,12 @@
+import { runTrackedOperation } from "../debug/excelDiagnostics";
 import { calculateExpectedValues } from "../engine/ExpectedValueCalculator";
 import { findOptimalPath } from "../engine/RollbackAnalysis";
 import { DecisionTreeData } from "../models/types";
 import { validate } from "../models/DecisionTree";
-import {
-  buildCalculationModel,
-} from "./CalculationSheet";
-import { clearRenderedSheets, renderToExcel } from "../renderer/ExcelShapeRenderer";
+import { buildRenderModel } from "../rendering/renderModel";
+import { renderToExcel, clearRenderedSheets } from "../renderer/ExcelShapeRenderer";
 import { computeLayout } from "../renderer/TreeLayoutEngine";
+import { buildCalculationModel } from "./CalculationSheet";
 
 function prepareTreeForRender(tree: DecisionTreeData): DecisionTreeData {
   if (!tree.rootId) return tree;
@@ -29,7 +29,10 @@ function prepareTreeForRender(tree: DecisionTreeData): DecisionTreeData {
   };
 }
 
-export async function renderTreeToExcel(tree: DecisionTreeData): Promise<void> {
+export async function renderTreeToExcel(
+  tree: DecisionTreeData,
+  options: { debug?: boolean } = {}
+): Promise<void> {
   const errors = validate(tree);
   if (errors.length > 0) {
     throw new Error(errors[0].message);
@@ -38,14 +41,23 @@ export async function renderTreeToExcel(tree: DecisionTreeData): Promise<void> {
   const treeToRender = prepareTreeForRender(tree);
   const calcSheet = buildCalculationModel(treeToRender);
   const layout = computeLayout(treeToRender, calcSheet);
+  const renderModel = buildRenderModel(treeToRender, layout);
 
   if (layout.nodes.length === 0) {
     throw new Error("El arbol esta vacio");
   }
 
-  await renderToExcel(layout, calcSheet, treeToRender);
+  await runTrackedOperation(
+    "renderTreeToExcel",
+    {
+      nodes: layout.nodes.length,
+      edges: layout.edges.length,
+      debug: options.debug ?? false,
+    },
+    async () => renderToExcel(layout, renderModel, calcSheet, treeToRender, options)
+  );
 }
 
 export async function clearShapes(): Promise<void> {
-  await clearRenderedSheets();
+  await runTrackedOperation("clearRenderedSheets", {}, async () => clearRenderedSheets());
 }

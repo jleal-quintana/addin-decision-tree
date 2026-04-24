@@ -5,7 +5,11 @@ import {
   LayoutNode,
   LayoutResult,
 } from "../models/types";
-import { GRID } from "./StyleConfig";
+import { GridProfile, resolveGridProfile } from "./StyleConfig";
+
+export interface LayoutOptions {
+  grid?: Partial<GridProfile>;
+}
 
 /**
  * Grid-based left-to-right decision tree layout.
@@ -14,8 +18,11 @@ import { GRID } from "./StyleConfig";
  */
 export function computeLayout(
   tree: DecisionTreeData,
-  calcSheet?: CalcSheetMetadata
+  calcSheet?: CalcSheetMetadata,
+  options: LayoutOptions = {}
 ): LayoutResult {
+  const grid = resolveGridProfile(options.grid);
+
   if (!tree.rootId || !tree.nodes[tree.rootId]) {
     return { nodes: [], edges: [], maxRow: 0, maxCol: 0 };
   }
@@ -37,7 +44,7 @@ export function computeLayout(
     if (!node) return;
 
     if (node.childIds.length === 0 || node.type === "end") {
-      rowOf[nodeId] = GRID.startRow + nextLeafSlot * (GRID.nodeRows + GRID.rowGap);
+      rowOf[nodeId] = grid.startRow + nextLeafSlot * (grid.nodeRows + grid.rowGap);
       nextLeafSlot++;
       return;
     }
@@ -59,14 +66,14 @@ export function computeLayout(
     if (!node) return;
 
     const depth = getDepth(nodeId);
-    const col = GRID.startCol + depth * (GRID.nodeCols + GRID.colGap);
+    const col = grid.startCol + depth * (grid.nodeCols + grid.colGap);
     const row = rowOf[nodeId] ?? 0;
 
     layoutNodes.push({
       id: node.id,
       row,
       col,
-      midRow: row + Math.floor(GRID.nodeRows / 2),
+      midRow: row + Math.floor(grid.nodeRows / 2),
       calcRow: calcSheet?.nodeRefs[node.id]?.sheetRow ?? null,
       type: node.type,
       label: node.label,
@@ -80,14 +87,14 @@ export function computeLayout(
       customFields: node.customFields ?? {},
     });
 
-    maxRow = Math.max(maxRow, row + GRID.nodeRows);
-    maxCol = Math.max(maxCol, col + GRID.nodeCols);
+    maxRow = Math.max(maxRow, row + grid.nodeRows);
+    maxCol = Math.max(maxCol, col + grid.nodeCols);
 
     for (const cid of node.childIds) {
       const child = tree.nodes[cid];
       if (!child) continue;
 
-      const childCol = GRID.startCol + (depth + 1) * (GRID.nodeCols + GRID.colGap);
+      const childCol = grid.startCol + (depth + 1) * (grid.nodeCols + grid.colGap);
       const childRow = rowOf[cid] ?? 0;
 
       layoutEdges.push({
@@ -95,11 +102,11 @@ export function computeLayout(
         toId: child.id,
         fromRow: row,
         fromCol: col,
-        fromMidRow: row + Math.floor(GRID.nodeRows / 2),
+        fromMidRow: row + Math.floor(grid.nodeRows / 2),
         toRow: childRow,
         toCol: childCol,
-        toMidRow: childRow + Math.floor(GRID.nodeRows / 2),
-        connectorCol: col + GRID.nodeCols + Math.max(1, Math.floor(GRID.colGap / 2)),
+        toMidRow: childRow + Math.floor(grid.nodeRows / 2),
+        connectorCol: col + grid.nodeCols + Math.max(1, Math.floor(grid.colGap / 2)),
         calcRow: calcSheet?.nodeRefs[child.id]?.sheetRow ?? null,
         label: child.label,
         probability: child.probability,

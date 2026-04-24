@@ -115,3 +115,43 @@ export type TreeAction =
   | { type: "SET_EXPECTED_VALUES"; values: Record<string, number | null>; optimalPath: string[] }
   | { type: "CLEAR_RESULTS" }
   | { type: "LOAD_EXAMPLE"; data: DecisionTreeData };
+
+export interface RenderProfile {
+  nodeWidthPx: number;
+  nodeHeightPx: number;
+  noteHeightPx: number;
+  horizontalGapPx: number;
+  verticalGapPx: number;
+  edgeLabelWidthPx: number;
+}
+
+export interface RenderNodeContent {
+  id: string;
+  title: string;
+  primaryValue: string;
+  secondaryLines: string[];
+  noteLines: string[];
+  type: NodeType;
+  isOptimal: boolean;
+  isLeaf: boolean;
+}
+
+export interface RenderEdgeContent {
+  fromId: string;
+  toId: string;
+  label: string;
+  isOptimal: boolean;
+}
+
+export interface RenderSummary {
+  title: string;
+  rootValue: string;
+  recommendedAction: string;
+}
+
+export interface RenderModel {
+  nodes: RenderNodeContent[];
+  edges: RenderEdgeContent[];
+  profile: RenderProfile;
+  summary: RenderSummary | null;
+}

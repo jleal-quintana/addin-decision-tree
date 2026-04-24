@@ -79,9 +79,10 @@ export function describeOptimalStrategy(
 
     const indent = "  ".repeat(depth);
     const ev = evMap[nodeId];
+    const metricLabel = tree.metadata.mode === "minimize" ? "Costo esp." : "VEN";
     const evStr =
       ev !== null
-        ? ` (VEN: $${ev.toLocaleString("es-AR", { maximumFractionDigits: 0 })})`
+        ? ` (${metricLabel}: $${ev.toLocaleString("es-AR", { maximumFractionDigits: 0 })})`
         : "";
 
     if (node.type === "decision") {

@@ -1,5 +1,7 @@
-export const TREE_SHEET_NAME = "Arbol de Decision";
-export const DATA_SHEET_NAME = "_DecisionTreeData";
+export const TREE_SHEET_NAME = "Arbol_Decision";
+export const DATA_SHEET_NAME = "DT_Data";
+export const CALC_SHEET_NAME = "DT_Calculos";
+export const DEBUG_SHEET_NAME = "DT_DebugLog";
 export const CALC_TABLE_NAME = "DT_Nodes";
 
 export const CALC_COLUMNS = [
