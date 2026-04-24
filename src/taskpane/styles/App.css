@@ -57,7 +57,7 @@ body {
 }
 
 .app-header {
-  padding: 10px 14px;
+  padding: 6px 12px;
   background: var(--qe-bosque);
   display: flex;
   align-items: center;
@@ -75,7 +75,7 @@ body {
 
 .app-header h1 {
   font-family: 'Montserrat', sans-serif;
-  font-size: 14px;
+  font-size: 12px;
   font-weight: 700;
   color: #ffffff;
   letter-spacing: 0.3px;
@@ -84,12 +84,45 @@ body {
 
 .app-header .subtitle {
   font-family: 'Montserrat', sans-serif;
-  font-size: 9px;
+  font-size: 8px;
   font-weight: 500;
   color: var(--qe-beige);
   letter-spacing: 1.2px;
   text-transform: uppercase;
   white-space: nowrap;
+}
+
+/* Toast */
+.toast {
+  position: fixed;
+  top: 8px;
+  left: 8px;
+  right: 8px;
+  z-index: 999;
+  padding: 8px 12px;
+  border-radius: var(--radius-sm);
+  font-size: 12px;
+  font-weight: 500;
+  box-shadow: var(--shadow-md);
+  border: 1px solid transparent;
+}
+
+.toast--error {
+  background: #fef2f2;
+  color: #c0392b;
+  border-color: #fca5a5;
+}
+
+.toast--success {
+  background: rgba(107, 123, 56, 0.1);
+  color: var(--qe-bosque);
+  border-color: var(--qe-verde);
+}
+
+.toast--info {
+  background: #f0f4ff;
+  color: var(--qe-azul);
+  border-color: var(--qe-azul-claro);
 }
 
 /* Toolbar */
@@ -115,9 +148,9 @@ body {
 }
 
 .toolbar {
-  display: flex;
-  flex-wrap: wrap;
-  gap: 4px;
+  display: grid;
+  grid-template-rows: auto auto;
+  gap: 6px;
   padding: 8px 12px;
   background: var(--bg-card);
   flex-shrink: 0;
@@ -126,14 +159,13 @@ body {
 .toolbar .btn {
   display: inline-flex;
   align-items: center;
-  gap: 5px;
-  padding: 5px 10px;
+  justify-content: center;
+  gap: 6px;
   border: 1px solid var(--border);
   border-radius: var(--radius-sm);
   background: var(--bg-card);
   color: var(--text-primary);
   font-family: 'Inter', sans-serif;
-  font-size: 12px;
   font-weight: 500;
   cursor: pointer;
   transition: all 0.15s;
@@ -145,27 +177,55 @@ body {
   border-color: var(--qe-beige);
 }
 
-.toolbar .btn.primary {
+.toolbar .btn:disabled {
+  opacity: 0.55;
+  cursor: not-allowed;
+  background: var(--bg-card);
+  border-color: var(--border);
+  color: var(--text-muted);
+}
+
+.toolbar .btn-hero {
+  width: 100%;
+  padding: 9px 14px;
+  font-size: 13px;
+  font-weight: 600;
   background: var(--qe-verde);
   color: #fff;
   border-color: var(--qe-verde);
 }
 
-.toolbar .btn.primary:hover {
+.toolbar .btn-hero:hover {
   background: var(--qe-bosque);
   border-color: var(--qe-bosque);
 }
 
-.toolbar .btn svg {
-  width: 14px;
-  height: 14px;
+.toolbar .btn-hero:disabled {
+  background: var(--qe-gris);
+  border-color: var(--border);
+  color: var(--text-muted);
 }
 
-.toolbar .separator {
-  width: 1px;
-  background: var(--border);
-  margin: 0 4px;
-  align-self: stretch;
+.toolbar .btn-hero svg {
+  width: 16px;
+  height: 16px;
+}
+
+.toolbar .btn-ghost {
+  padding: 5px 9px;
+  font-size: 11px;
+}
+
+.toolbar .btn-ghost svg {
+  width: 13px;
+  height: 13px;
+}
+
+.toolbar-row-secondary {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 4px;
+  align-items: center;
 }
 
 /* Tabs */
@@ -246,6 +306,72 @@ body {
   gap: 8px;
   justify-content: center;
   flex-wrap: wrap;
+}
+
+.empty-state .actions-stack {
+  flex-direction: column;
+  align-items: stretch;
+}
+
+.empty-group {
+  text-align: left;
+  margin-bottom: 14px;
+}
+
+.empty-group-label {
+  font-family: 'Montserrat', sans-serif;
+  font-size: 10px;
+  font-weight: 600;
+  letter-spacing: 1px;
+  text-transform: uppercase;
+  color: var(--text-muted);
+  margin-bottom: 6px;
+  padding-left: 2px;
+}
+
+.empty-divider {
+  position: relative;
+  text-align: center;
+  font-size: 11px;
+  color: var(--text-muted);
+  margin: 8px 0 12px;
+}
+
+.empty-divider::before,
+.empty-divider::after {
+  content: "";
+  position: absolute;
+  top: 50%;
+  width: calc(50% - 48px);
+  height: 1px;
+  background: var(--border);
+}
+
+.empty-divider::before { left: 0; }
+.empty-divider::after  { right: 0; }
+
+.btn-create:disabled {
+  opacity: 0.55;
+  cursor: not-allowed;
+}
+
+.btn-create-desc {
+  display: block;
+  font-family: 'Inter', sans-serif;
+  font-size: 10px;
+  font-weight: 400;
+  color: inherit;
+  opacity: 0.7;
+  margin-top: 2px;
+}
+
+.empty-state .btn-create.example {
+  display: flex;
+  flex-direction: column;
+  align-items: flex-start;
+  gap: 0;
+  text-align: left;
+  padding: 9px 12px;
 }
 
 .btn-create {
