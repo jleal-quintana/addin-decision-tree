@@ -1,6 +1,6 @@
 import { isDebugEnabled, runTrackedOperation } from "../debug/excelDiagnostics";
 import { writeCalculationModel } from "../excel/CalculationSheet";
-import { colLetter, rangeAddr } from "../excel/ExcelAddress";
+import { rangeAddr } from "../excel/ExcelAddress";
 import { CALC_SHEET_NAME, TREE_SHEET_NAME } from "../excel/WorkbookConstants";
 import {
   CalcSheetMetadata,
@@ -13,7 +13,7 @@ import {
 } from "../models/types";
 import { QUINTANA, RENDER_TOKENS } from "../rendering/designTokens";
 import { enumeratePaths, PathRow } from "../engine/PathEnumeration";
-import { COL_WIDTH, EDGE_COLORS, GRID, ROW_HEIGHT, SHAPE_PREFIX, SHAPE_ROW_HEIGHT } from "./StyleConfig";
+import { EDGE_COLORS, GRID, ROW_HEIGHT, SHAPE_PREFIX, SHAPE_ROW_HEIGHT } from "./StyleConfig";
 
 type ShapeType = "decision" | "chance" | "end";
 
@@ -588,7 +588,11 @@ export async function renderToExcel(
         // totalCols es cantidad; lastColIdx es índice 0-based de la última columna.
         const totalCols = Math.max(layout.maxCol + GRID.colGap + 24, 40);
         const lastColIdx = totalCols - 1;
-        treeSheet.getRange(`A:${colLetter(lastColIdx)}`).format.columnWidth = COL_WIDTH;
+        // No forzamos columnWidth de todas las columnas. Antes las ponía en 9 y
+        // los valores con formato moneda se mostraban como "####". Dejamos el
+        // ancho default de Excel (~8.43 ≈ 64px) y listo; las bandas del header,
+        // recomendación y tabla de caminos siguen usando merge para ocupar el
+        // ancho completo, y los nodos a 4 columnas tienen ~256px de sobra.
         treeSheet.showGridlines = false;
 
         // Fila del shape más alta para que el polígono entre cómodo.
