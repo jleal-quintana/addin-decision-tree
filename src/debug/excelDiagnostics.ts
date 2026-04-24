@@ -61,13 +61,14 @@ function pushEntry(
 export function isDebugEnabled(): boolean {
   try {
     const params = new URLSearchParams(window.location.search);
-    if (params.get("debug") === "1") return true;
-    if (window.localStorage.getItem("dt-debug") === "1") return true;
+    if (params.get("debug") === "0") return false;
+    if (window.localStorage.getItem("dt-debug") === "0") return false;
   } catch {
     // ignore non-browser environments
   }
 
-  return Boolean((globalThis as { __DT_DEBUG__?: boolean }).__DT_DEBUG__);
+  if ((globalThis as { __DT_DEBUG__?: boolean }).__DT_DEBUG__ === false) return false;
+  return true;
 }
 
 export function subscribeDiagnostics(listener: DiagnosticListener): () => void {
@@ -123,7 +124,7 @@ export async function flushDiagnosticsToWorkbook(): Promise<void> {
         ? context.workbook.worksheets.add(DEBUG_SHEET_NAME)
         : existing;
 
-      sheet.visibility = Excel.SheetVisibility.hidden;
+      sheet.visibility = Excel.SheetVisibility.visible;
       const usedRange = sheet.getUsedRangeOrNullObject();
       usedRange.load("address");
       await context.sync();

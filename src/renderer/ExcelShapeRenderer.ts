@@ -1,4 +1,4 @@
-import { runTrackedOperation } from "../debug/excelDiagnostics";
+import { isDebugEnabled, runTrackedOperation } from "../debug/excelDiagnostics";
 import { writeCalculationModel } from "../excel/CalculationSheet";
 import { colLetter, rangeAddr } from "../excel/ExcelAddress";
 import { CALC_SHEET_NAME, TREE_SHEET_NAME } from "../excel/WorkbookConstants";
@@ -75,8 +75,8 @@ function assertValidNodeRect(nodeId: string, rect: NodeRect | undefined, context
   return rect;
 }
 
-function writeRenderDebug(sheet: Excel.Worksheet, title: string, detail = "", enabled = false): void {
-  if (!enabled) return;
+function writeRenderDebug(sheet: Excel.Worksheet, title: string, detail = ""): void {
+  if (!isDebugEnabled()) return;
   sheet.getRange("A3").values = [[title]];
   sheet.getRange("A4").values = [[detail]];
   sheet.getRange("A3:A4").format.font.name = "Calibri";
@@ -205,17 +205,18 @@ function writeNodeCells(
   const valueRange = sheet.getRange(rangeAddr(startCol, layoutNode.row + 2, width, 1));
   valueRange.unmerge();
   if (width > 1) valueRange.merge();
+  const valueCell = sheet.getCell(layoutNode.row + 2, startCol);
   const nodeRef = calcSheetMetadata.nodeRefs[layoutNode.id];
   const node = tree.nodes[layoutNode.id];
   if (nodeRef && node) {
     const addr = node.type === "end" ? nodeRef.terminalValueAddress : nodeRef.netEvAddress;
-    valueRange.formulas = [[`=${addr}`]];
-    valueRange.numberFormat = [["$#,##0"]];
+    valueCell.formulas = [[`=${addr}`]];
+    valueCell.numberFormat = [["$#,##0"]];
   } else if (layoutNode.expectedValue !== null) {
-    valueRange.values = [[layoutNode.expectedValue]];
-    valueRange.numberFormat = [["$#,##0"]];
+    valueCell.values = [[layoutNode.expectedValue]];
+    valueCell.numberFormat = [["$#,##0"]];
   } else {
-    valueRange.values = [[""]];
+    valueCell.values = [[""]];
   }
   valueRange.format.fill.color = "#FFFFFF";
   valueRange.format.font.name = "Calibri";
