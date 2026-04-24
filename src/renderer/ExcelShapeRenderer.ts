@@ -26,7 +26,7 @@ interface NodeTheme {
   fill: string;
   border: string;
   text: string;
-  geometricType: Excel.GeometricShapeType | "Rectangle" | "Ellipse" | "RoundRectangle";
+  geometricType: Excel.GeometricShapeType;
 }
 
 const NODE_THEMES: Record<ShapeType, NodeTheme> = {
@@ -34,21 +34,46 @@ const NODE_THEMES: Record<ShapeType, NodeTheme> = {
     fill: RENDER_TOKENS.decision.fill,
     border: RENDER_TOKENS.decision.border,
     text: RENDER_TOKENS.decision.text,
-    geometricType: "Rectangle",
+    geometricType: "Rectangle" as Excel.GeometricShapeType,
   },
   chance: {
     fill: RENDER_TOKENS.chance.fill,
     border: RENDER_TOKENS.chance.border,
     text: RENDER_TOKENS.chance.text,
-    geometricType: "Ellipse",
+    geometricType: "Ellipse" as Excel.GeometricShapeType,
   },
   end: {
     fill: RENDER_TOKENS.end.fill,
     border: RENDER_TOKENS.end.border,
     text: RENDER_TOKENS.end.text,
-    geometricType: "RoundRectangle",
+    geometricType: "RoundRectangle" as Excel.GeometricShapeType,
   },
 };
+
+function setShapePlacement(_shape: Excel.Shape): void {
+  // DIAG 2026-04-24: placement comentado para aislar el RichApi.Error.
+  // Si con esto renderiza, la causa era placement (ExcelApi 1.10 incompleto en el host).
+  // _shape.placement = "OneCell";
+}
+
+function assertValidNodeRect(nodeId: string, rect: NodeRect | undefined, context: string): NodeRect {
+  if (!rect) {
+    throw new Error(`NodeRect ausente para ${context} ${nodeId} - bug de pipeline`);
+  }
+
+  if (
+    !Number.isFinite(rect.left) ||
+    !Number.isFinite(rect.top) ||
+    !Number.isFinite(rect.width) ||
+    !Number.isFinite(rect.height) ||
+    rect.width <= 0 ||
+    rect.height <= 0
+  ) {
+    throw new Error(`NodeRect invalido para ${context} ${nodeId}: ${JSON.stringify(rect)}`);
+  }
+
+  return rect;
+}
 
 function writeRenderDebug(sheet: Excel.Worksheet, title: string, detail = ""): void {
   sheet.getRange("A3").values = [[title]];
@@ -66,9 +91,13 @@ function setRowBandValue(
   value: string
 ): Excel.Range {
   const band = sheet.getRange(rangeAddr(col, row, cols, 1));
-  band.merge();
-  sheet.getCell(row, col).values = [[value]];
-  return band;
+  band.unmerge();
+  if (cols > 1) {
+    band.merge();
+  }
+  const topLeft = sheet.getCell(row, col);
+  topLeft.values = [[value]];
+  return topLeft;
 }
 
 async function getOrCreateSheet(
@@ -101,6 +130,7 @@ async function clearWorksheet(sheet: Excel.Worksheet): Promise<void> {
   }
 
   if (!usedRange.isNullObject) {
+    usedRange.unmerge();
     usedRange.clear(Excel.ClearApplyTo.all);
   }
 
@@ -130,11 +160,12 @@ function createNodeMarker(
   marker.top = rect.top + 10;
   marker.width = markerWidth;
   marker.height = markerHeight;
-  marker.placement = "OneCell";
+  setShapePlacement(marker);
   marker.fill.setSolidColor(theme.fill);
-  marker.lineFormat.color = node.isOptimal ? RENDER_TOKENS.accent : theme.border;
-  marker.lineFormat.weight = node.isOptimal ? EDGE_COLORS.optimalWeight : 1.25;
+  // Orden crítico: visible -> color -> weight. Weight debe ser entero en Excel desktop.
   marker.lineFormat.visible = true;
+  marker.lineFormat.color = node.isOptimal ? RENDER_TOKENS.accent : theme.border;
+  marker.lineFormat.weight = node.isOptimal ? 3 : 1;
   return marker;
 }
 
@@ -199,22 +230,21 @@ function createEdgeConnector(
   fromRect: NodeRect,
   toRect: NodeRect
 ): void {
-  const line = (sheet.shapes as unknown as {
-    addLine: (x1: number, y1: number, x2: number, y2: number, kind: string) => Excel.Shape;
-  }).addLine(
+  const line = sheet.shapes.addLine(
     fromRect.left + 20,
     fromRect.top + 24,
     toRect.left + 4,
     toRect.top + 24,
-    "Elbow"
+    Excel.ConnectorType.elbow
   );
 
   line.name = `${SHAPE_PREFIX}EDGE_${edge.fromId}_${edge.toId}`;
-  line.placement = "OneCell";
+  setShapePlacement(line);
   line.line.endArrowheadStyle = "Triangle";
   line.line.endArrowheadLength = "Medium";
   line.line.endArrowheadWidth = "Medium";
   line.line.beginArrowheadStyle = "None";
+  line.lineFormat.visible = true;
   line.lineFormat.color = edge.isOptimal ? EDGE_COLORS.optimal : EDGE_COLORS.normal;
   line.lineFormat.weight = edge.isOptimal ? EDGE_COLORS.optimalWeight : EDGE_COLORS.normalWeight;
   line.lineFormat.visible = true;
@@ -235,13 +265,13 @@ function writeEdgeLabelCells(
 }
 
 function createSummaryShape(sheet: Excel.Worksheet, col: number, row: number): void {
-  const shape = sheet.shapes.addGeometricShape("RoundRectangle");
+  const shape = sheet.shapes.addGeometricShape("RoundRectangle" as Excel.GeometricShapeType);
   shape.name = `${SHAPE_PREFIX}SUMMARY`;
   shape.left = col * COL_WIDTH + 2;
   shape.top = row * ROW_HEIGHT + 4;
   shape.width = 16;
   shape.height = 16;
-  shape.placement = "OneCell";
+  setShapePlacement(shape);
   shape.fill.setSolidColor(RENDER_TOKENS.accent);
   shape.lineFormat.color = RENDER_TOKENS.accent;
   shape.lineFormat.visible = true;
@@ -301,8 +331,11 @@ export async function renderToExcel(
         treeSheet.showGridlines = true;
 
         renderTitle(treeSheet, tree);
-        writeRenderDebug(treeSheet, "Render iniciado");
+        writeRenderDebug(treeSheet, "Calc model");
         await writeCalculationModel(calcSheet, tree, calcSheetMetadata);
+        await context.sync();
+        writeRenderDebug(treeSheet, "Calc model OK");
+        await context.sync();
 
         const rangeByNodeId: Record<string, Excel.Range> = {};
         for (const node of layout.nodes) {
@@ -330,10 +363,12 @@ export async function renderToExcel(
         );
 
         for (const node of layout.nodes) {
-          const rect = nodeRects[node.id];
+          const rect = assertValidNodeRect(node.id, nodeRects[node.id], "nodo");
           const renderNode = renderNodeById[node.id];
+          if (!renderNode) {
+            throw new Error(`RenderNodeContent ausente para nodo ${node.id} - modelo desalineado`);
+          }
           try {
-            writeRenderDebug(treeSheet, `Nodo ${node.id}`, "Marker + celdas");
             createNodeMarker(treeSheet, renderNode, rect);
             writeNodeCells(treeSheet, node, renderNode);
             await context.sync();
@@ -349,9 +384,8 @@ export async function renderToExcel(
         }
 
         for (const edge of layout.edges) {
-          const fromRect = nodeRects[edge.fromId];
-          const toRect = nodeRects[edge.toId];
-          if (!fromRect || !toRect) continue;
+          const fromRect = assertValidNodeRect(edge.fromId, nodeRects[edge.fromId], "edge.from");
+          const toRect = assertValidNodeRect(edge.toId, nodeRects[edge.toId], "edge.to");
 
           const renderEdge = renderEdgeByKey[`${edge.fromId}-${edge.toId}`];
           try {

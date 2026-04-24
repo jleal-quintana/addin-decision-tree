@@ -28,8 +28,8 @@ export const ROW_HEIGHT = 24;
 export const EDGE_COLORS = {
   normal: "#1B4B6C",
   optimal: "#6B7B38",
-  normalWeight: 1.5,
-  optimalWeight: 2.75,
+  normalWeight: 2,
+  optimalWeight: 3,
 };
 
 export const OPTIMAL_BORDER_COLOR = "#6B7B38";
