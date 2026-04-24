@@ -11,7 +11,7 @@ import {
   RenderNodeContent,
 } from "../models/types";
 import { RENDER_TOKENS } from "../rendering/designTokens";
-import { COL_WIDTH, EDGE_COLORS, GRID, ROW_HEIGHT, SHAPE_PREFIX } from "./StyleConfig";
+import { COL_WIDTH, EDGE_COLORS, GRID, ROW_HEIGHT, SHAPE_PREFIX, SHAPE_ROW_HEIGHT } from "./StyleConfig";
 
 type ShapeType = "decision" | "chance" | "end";
 
@@ -75,7 +75,8 @@ function assertValidNodeRect(nodeId: string, rect: NodeRect | undefined, context
   return rect;
 }
 
-function writeRenderDebug(sheet: Excel.Worksheet, title: string, detail = ""): void {
+function writeRenderDebug(sheet: Excel.Worksheet, title: string, detail = "", enabled = false): void {
+  if (!enabled) return;
   sheet.getRange("A3").values = [[title]];
   sheet.getRange("A4").values = [[detail]];
   sheet.getRange("A3:A4").format.font.name = "Calibri";
@@ -152,14 +153,18 @@ function createNodeMarker(
 ): Excel.Shape {
   const theme = NODE_THEMES[node.type];
   const marker = sheet.shapes.addGeometricShape(theme.geometricType);
-  const markerWidth = Math.max(18, Math.min(28, rect.width * 0.18));
-  const markerHeight = Math.max(18, Math.min(28, rect.height * 0.28));
+
+  // Aspect ratio 1:1 real. Cabe dentro de la fila superior del bloque del nodo.
+  const shapeRowHeight = SHAPE_ROW_HEIGHT;
+  const size = Math.min(shapeRowHeight - 6, rect.width * 0.5);
+  const left = rect.left + (rect.width - size) / 2;
+  const top = rect.top + (shapeRowHeight - size) / 2;
 
   marker.name = `${SHAPE_PREFIX}NODE_${node.id}`;
-  marker.left = rect.left + 4;
-  marker.top = rect.top + 10;
-  marker.width = markerWidth;
-  marker.height = markerHeight;
+  marker.left = left;
+  marker.top = top;
+  marker.width = size;
+  marker.height = size;
   setShapePlacement(marker);
   marker.fill.setSolidColor(theme.fill);
   // Orden crítico: visible -> color -> weight. Weight debe ser entero en Excel desktop.
@@ -172,56 +177,66 @@ function createNodeMarker(
 function writeNodeCells(
   sheet: Excel.Worksheet,
   layoutNode: LayoutNode,
-  renderNode: RenderNodeContent
+  renderNode: RenderNodeContent,
+  calcSheetMetadata: CalcSheetMetadata,
+  tree: DecisionTreeData
 ): void {
   const theme = NODE_THEMES[renderNode.type];
-  const startCol = layoutNode.col + 1;
-  const width = Math.max(GRID.nodeCols - 1, 3);
-  const titleRange = setRowBandValue(sheet, startCol, layoutNode.row, width, renderNode.title);
-  const valueRange = setRowBandValue(
-    sheet,
-    startCol,
-    layoutNode.row + 1,
-    width,
-    renderNode.primaryValue
-  );
-  const detailRange = setRowBandValue(
-    sheet,
-    startCol,
-    layoutNode.row + 2,
-    width,
-    renderNode.secondaryLines.join(" | ")
-  );
-  const noteRange = setRowBandValue(
-    sheet,
-    startCol,
-    layoutNode.row + 3,
-    width,
-    renderNode.noteLines.join(" | ")
-  );
+  const startCol = layoutNode.col;
+  const width = GRID.nodeCols;
 
+  // Fila 0 reservada para el shape. Celdas vacías para no competir visualmente.
+  const shapeRowRange = sheet.getRange(rangeAddr(startCol, layoutNode.row, width, 1));
+  shapeRowRange.unmerge();
+  shapeRowRange.values = Array.from({ length: 1 }, () => Array.from({ length: width }, () => ""));
+
+  // Fila 1: título (label).
+  const titleRange = setRowBandValue(sheet, startCol, layoutNode.row + 1, width, renderNode.title);
   titleRange.format.fill.color = renderNode.isOptimal ? "#E2FF87" : theme.fill;
-  valueRange.format.fill.color = "#FFFFFF";
-  detailRange.format.fill.color = "#F7F8F9";
-  noteRange.format.fill.color = "#FFFFFF";
-
   titleRange.format.font.name = "Calibri";
   titleRange.format.font.size = 11;
   titleRange.format.font.bold = true;
   titleRange.format.font.color = renderNode.isOptimal ? "#33492D" : theme.text;
+  titleRange.format.horizontalAlignment = "Center";
 
+  // Fila 2: valor como NUMBER con numberFormat. Si está disponible, como fórmula
+  // que referencia el calc sheet (la fuente de verdad). Así Bárbara ve la celda
+  // conectada y puede auditar la cadena de cálculos.
+  const valueRange = sheet.getRange(rangeAddr(startCol, layoutNode.row + 2, width, 1));
+  valueRange.unmerge();
+  if (width > 1) valueRange.merge();
+  const nodeRef = calcSheetMetadata.nodeRefs[layoutNode.id];
+  const node = tree.nodes[layoutNode.id];
+  if (nodeRef && node) {
+    const addr = node.type === "end" ? nodeRef.terminalValueAddress : nodeRef.netEvAddress;
+    valueRange.formulas = [[`=${addr}`]];
+    valueRange.numberFormat = [["$#,##0"]];
+  } else if (layoutNode.expectedValue !== null) {
+    valueRange.values = [[layoutNode.expectedValue]];
+    valueRange.numberFormat = [["$#,##0"]];
+  } else {
+    valueRange.values = [[""]];
+  }
+  valueRange.format.fill.color = "#FFFFFF";
   valueRange.format.font.name = "Calibri";
-  valueRange.format.font.size = 10;
+  valueRange.format.font.size = 11;
   valueRange.format.font.bold = true;
   valueRange.format.font.color = "#1A1A1A";
+  valueRange.format.horizontalAlignment = "Center";
 
+  // Fila 3: prob / costo / tiempo + notas en la misma banda (contexto, no dato duro).
+  const detailText = [
+    renderNode.secondaryLines.join(" · "),
+    renderNode.noteLines.join(" · "),
+  ]
+    .filter((part) => part.length > 0)
+    .join(" — ");
+  const detailRange = setRowBandValue(sheet, startCol, layoutNode.row + 3, width, detailText);
+  detailRange.format.fill.color = "#F7F8F9";
   detailRange.format.font.name = "Calibri";
   detailRange.format.font.size = 9;
   detailRange.format.font.color = RENDER_TOKENS.edge;
-
-  noteRange.format.font.name = "Calibri";
-  noteRange.format.font.size = 8;
-  noteRange.format.font.color = RENDER_TOKENS.muted;
+  detailRange.format.horizontalAlignment = "Center";
 }
 
 function createEdgeConnector(
@@ -328,18 +343,22 @@ export async function renderToExcel(
         const lastRow = layout.maxRow + GRID.rowGap + 24;
         treeSheet.getRange(`A:${colLetter(lastCol)}`).format.columnWidth = COL_WIDTH;
         treeSheet.getRange(`1:${lastRow}`).format.rowHeight = ROW_HEIGHT;
-        treeSheet.showGridlines = true;
+        treeSheet.showGridlines = false;
+
+        // La primera fila de cada bloque es reservada para el shape. Más alta
+        // que el resto para que el círculo/cuadrado entre cómodo sin pisar texto.
+        for (const node of layout.nodes) {
+          const shapeRowAddr = rangeAddr(node.col, node.row, 1, 1);
+          treeSheet.getRange(shapeRowAddr).format.rowHeight = SHAPE_ROW_HEIGHT;
+        }
 
         renderTitle(treeSheet, tree);
-        writeRenderDebug(treeSheet, "Calc model");
         await writeCalculationModel(calcSheet, tree, calcSheetMetadata);
-        await context.sync();
-        writeRenderDebug(treeSheet, "Calc model OK");
         await context.sync();
 
         const rangeByNodeId: Record<string, Excel.Range> = {};
         for (const node of layout.nodes) {
-          const range = treeSheet.getRange(rangeAddr(node.col, node.row, 1, GRID.nodeRows));
+          const range = treeSheet.getRange(rangeAddr(node.col, node.row, GRID.nodeCols, GRID.nodeRows));
           range.load("left,top,width,height");
           rangeByNodeId[node.id] = range;
         }
@@ -370,7 +389,7 @@ export async function renderToExcel(
           }
           try {
             createNodeMarker(treeSheet, renderNode, rect);
-            writeNodeCells(treeSheet, node, renderNode);
+            writeNodeCells(treeSheet, node, renderNode, calcSheetMetadata, tree);
             await context.sync();
           } catch (error) {
             writeRenderDebug(

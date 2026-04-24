@@ -65,7 +65,7 @@ describe("Excel rendering edge cases", () => {
     const layout = computeLayout(tree, calc);
     const renderModel = buildRenderModel(tree, layout);
     const node = layout.nodes[0];
-    const nodeAddress = rangeAddr(node.col, node.row, 1, GRID.nodeRows);
+    const nodeAddress = rangeAddr(node.col, node.row, GRID.nodeCols, GRID.nodeRows);
     const originalSync = context.sync.bind(context);
     let invalidated = false;
 
