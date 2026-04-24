@@ -49,7 +49,7 @@ export function Toolbar({ showToast, drawApi }: ToolbarProps) {
       if (data) {
         dispatch({ type: "SET_TREE", data });
         clearRenderError();
-        showToast("Cargado", "Arbol restaurado", "success");
+        showToast("Cargado", "Análisis restaurado", "success");
       } else {
         showToast("Info", "No hay datos guardados", "info");
       }
@@ -63,7 +63,7 @@ export function Toolbar({ showToast, drawApi }: ToolbarProps) {
     try {
       await clearShapes();
       clearRenderError();
-      showToast("Limpio", "Se limpio la hoja del arbol", "success");
+      showToast("Limpio", "Se limpió la hoja del árbol", "success");
     } catch (error) {
       const message = error instanceof Error ? error.message : String(error);
       showToast("Error", message || "Error al limpiar", "error");
@@ -98,7 +98,7 @@ export function Toolbar({ showToast, drawApi }: ToolbarProps) {
           className="btn btn-hero"
           onClick={drawCurrent}
           disabled={drawDisabled}
-          title={hasTree ? "Dibujar el arbol en Excel" : "Primero creá o cargá un arbol"}
+          title={hasTree ? "Dibujar el árbol en Excel" : "Primero elegí un caso o cargá uno existente"}
         >
           <svg viewBox="0 0 16 16" fill="none" stroke="currentColor" strokeWidth="1.5">
             <path d="M2 14l3-1 8-8-2-2-8 8z" />
@@ -152,24 +152,24 @@ export function Toolbar({ showToast, drawApi }: ToolbarProps) {
                 <div className="dropdown-menu">
                   <button
                     className="dropdown-item"
-                    onClick={() => handleExample(workoverExample, "Workover de Pozo")}
+                    onClick={() => handleExample(workoverExample, "Workover de pozo")}
                   >
-                    Workover de Pozo
-                    <span className="desc">Minimizar costo · Oil &amp; Gas</span>
+                    Workover de pozo
+                    <span className="desc">Intervención · Modo Costo</span>
                   </button>
                   <button
                     className="dropdown-item"
-                    onClick={() => handleExample(oilDrillingExample, "Perforacion de Pozo")}
+                    onClick={() => handleExample(oilDrillingExample, "Perforación de pozo")}
                   >
-                    Perforacion de Pozo
-                    <span className="desc">Carga, calcula y dibuja automaticamente</span>
+                    Perforación de pozo
+                    <span className="desc">Inversión · Modo Valor</span>
                   </button>
                   <button
                     className="dropdown-item"
-                    onClick={() => handleExample(productLaunchExample, "Lanzamiento de Producto")}
+                    onClick={() => handleExample(productLaunchExample, "Lanzamiento de producto")}
                   >
-                    Lanzamiento de Producto
-                    <span className="desc">Carga, calcula y dibuja automaticamente</span>
+                    Lanzamiento de producto
+                    <span className="desc">Inversión · Modo Valor</span>
                   </button>
                 </div>
               )}

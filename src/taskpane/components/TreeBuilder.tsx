@@ -20,9 +20,9 @@ function NodeItem({ node, depth }: { node: TreeNode; depth: number }) {
 
   const handleAddChild = useCallback((type: NodeType) => {
     const labels: Record<NodeType, string> = {
-      decision: "Nueva Decision",
-      chance: "Nuevo Chance",
-      end: "Resultado",
+      decision: "Nueva decisión",
+      chance: "Nueva incertidumbre",
+      end: "Resultado final",
     };
     dispatch({ type: "ADD_NODE", parentId: node.id, nodeType: type, label: labels[type] });
   }, [dispatch, node.id]);
@@ -43,8 +43,9 @@ function NodeItem({ node, depth }: { node: TreeNode; depth: number }) {
   }
   const metaText = parts.join(" | ");
 
+  const evPrefix = state.tree.metadata.mode === "minimize" ? "Costo esp." : "Valor esp.";
   const evText = node.expectedValue !== null
-    ? `VE: $${node.expectedValue.toLocaleString("es-AR", { maximumFractionDigits: 0 })}`
+    ? `${evPrefix}: $${node.expectedValue.toLocaleString("es-AR", { maximumFractionDigits: 0 })}`
     : "";
 
   const typeInitial = { decision: "D", chance: "C", end: "R" }[node.type];
@@ -66,24 +67,24 @@ function NodeItem({ node, depth }: { node: TreeNode; depth: number }) {
               <button
                 className="add-decision"
                 onClick={() => handleAddChild("decision")}
-                aria-label="Agregar nodo de decision"
-                title="Agregar decision"
+                aria-label="Agregar decisión"
+                title="Agregar decisión"
               >
                 <svg width="14" height="14" viewBox="0 0 14 14" aria-hidden="true"><rect x="2" y="2" width="10" height="10" rx="1.5" fill="none" stroke="currentColor" strokeWidth="1.3"/><path d="M7 5v4M5 7h4" stroke="currentColor" strokeWidth="1.3"/></svg>
               </button>
               <button
                 className="add-chance"
                 onClick={() => handleAddChild("chance")}
-                aria-label="Agregar nodo de chance"
-                title="Agregar chance"
+                aria-label="Agregar incertidumbre"
+                title="Agregar incertidumbre"
               >
                 <svg width="14" height="14" viewBox="0 0 14 14" aria-hidden="true"><circle cx="7" cy="7" r="5" fill="none" stroke="currentColor" strokeWidth="1.3"/><path d="M7 5v4M5 7h4" stroke="currentColor" strokeWidth="1.3"/></svg>
               </button>
               <button
                 className="add-end"
                 onClick={() => handleAddChild("end")}
-                aria-label="Agregar nodo de resultado"
-                title="Agregar resultado"
+                aria-label="Agregar resultado final"
+                title="Agregar resultado final"
               >
                 <svg width="14" height="14" viewBox="0 0 14 14" aria-hidden="true"><path d="M7 2l5 10H2z" fill="none" stroke="currentColor" strokeWidth="1.3"/></svg>
               </button>
@@ -118,7 +119,7 @@ export function TreeBuilder({ drawApi }: TreeBuilderProps = {}) {
       type: "ADD_NODE",
       parentId: null,
       nodeType: "decision",
-      label: mode === "maximize" ? "Decision Principal" : "Decision de Costo",
+      label: "Decisión principal",
     });
   }, [dispatch]);
 
@@ -144,50 +145,75 @@ export function TreeBuilder({ drawApi }: TreeBuilderProps = {}) {
             <circle cx="18" cy="12.5" r="3"/>
           </svg>
         </div>
-        <h3>Crea tu arbol de decision</h3>
-        <p>Probá un ejemplo para ver cómo funciona, o empezá desde cero.</p>
+        <h3>¿Qué estás evaluando?</h3>
+        <p>Elegí un caso para empezar. El modo se configura solo; después podés ajustarlo.</p>
 
         <div className="empty-group">
-          <div className="empty-group-label">Probá un ejemplo</div>
           <div className="actions actions-stack">
             <button
               className="btn-create example"
               disabled={loading}
-              onClick={() => handleLoadExample(workoverExample, "Workover de Pozo")}
+              onClick={() => handleCreateTree("minimize")}
             >
-              Workover de Pozo
-              <span className="btn-create-desc">Minimizar costo · Oil &amp; Gas</span>
+              Intervención en pozo
+              <span className="btn-create-desc">Workover, recompletación, estimulación · Modo Costo</span>
             </button>
             <button
               className="btn-create example"
               disabled={loading}
-              onClick={() => handleLoadExample(oilDrillingExample, "Perforacion de Pozo")}
+              onClick={() => handleCreateTree("maximize")}
             >
-              Perforacion de Pozo
-              <span className="btn-create-desc">Maximizar valor · Inversión</span>
+              Inversión o perforación
+              <span className="btn-create-desc">Nuevo pozo, adquisición, expansión · Modo Valor</span>
             </button>
             <button
               className="btn-create example"
               disabled={loading}
-              onClick={() => handleLoadExample(productLaunchExample, "Lanzamiento de Producto")}
+              onClick={() => handleCreateTree("maximize")}
             >
-              Lanzamiento de Producto
-              <span className="btn-create-desc">Maximizar valor · Comercial</span>
+              Desde cero · Modo Valor
+              <span className="btn-create-desc">Elegir la alternativa con mejor resultado esperado</span>
+            </button>
+            <button
+              className="btn-create example"
+              disabled={loading}
+              onClick={() => handleCreateTree("minimize")}
+            >
+              Desde cero · Modo Costo
+              <span className="btn-create-desc">Elegir la alternativa con menor costo esperado</span>
             </button>
           </div>
         </div>
 
-        <div className="empty-divider">o desde cero</div>
+        <div className="empty-divider">¿Querés ver un ejemplo resuelto primero?</div>
 
-        <div className="actions">
-          <button className="btn-create decision" onClick={() => handleCreateTree("maximize")}>
-            <svg width="14" height="14" viewBox="0 0 14 14" aria-hidden="true"><path d="M7 2l3 5H4z" fill="none" stroke="currentColor" strokeWidth="1.3"/><path d="M4 9h6" stroke="currentColor" strokeWidth="1.3"/></svg>
-            Maximizar Valor
-          </button>
-          <button className="btn-create chance" onClick={() => handleCreateTree("minimize")}>
-            <svg width="14" height="14" viewBox="0 0 14 14" aria-hidden="true"><path d="M7 12l-3-5h6z" fill="none" stroke="currentColor" strokeWidth="1.3"/><path d="M4 5h6" stroke="currentColor" strokeWidth="1.3"/></svg>
-            Minimizar Costo
-          </button>
+        <div className="empty-group">
+          <div className="actions actions-stack">
+            <button
+              className="btn-create example"
+              disabled={loading}
+              onClick={() => handleLoadExample(workoverExample, "Workover de pozo")}
+            >
+              Workover de pozo
+              <span className="btn-create-desc">Intervención · Modo Costo</span>
+            </button>
+            <button
+              className="btn-create example"
+              disabled={loading}
+              onClick={() => handleLoadExample(oilDrillingExample, "Perforación de pozo")}
+            >
+              Perforación de pozo
+              <span className="btn-create-desc">Inversión · Modo Valor</span>
+            </button>
+            <button
+              className="btn-create example"
+              disabled={loading}
+              onClick={() => handleLoadExample(productLaunchExample, "Lanzamiento de producto")}
+            >
+              Lanzamiento de producto
+              <span className="btn-create-desc">Inversión · Modo Valor</span>
+            </button>
+          </div>
         </div>
       </div>
     );
@@ -199,7 +225,7 @@ export function TreeBuilder({ drawApi }: TreeBuilderProps = {}) {
   return (
     <div className="node-list">
       <div style={{ padding: "4px 10px", fontSize: 10, color: "var(--text-secondary)", borderBottom: "1px solid var(--border)" }}>
-        Modo: {tree.metadata.mode === "minimize" ? "Minimizar costo" : "Maximizar valor"}
+        {tree.metadata.mode === "minimize" ? "Modo Costo · elegir menor costo esperado" : "Modo Valor · elegir mejor resultado esperado"}
       </div>
       <NodeItem node={rootNode} depth={0} />
     </div>

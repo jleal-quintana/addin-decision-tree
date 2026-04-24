@@ -32,7 +32,7 @@ export function useDrawTree(showToast: ToastFn): DrawTreeApi {
     setDrawing(true);
     try {
       await renderTreeToExcel(state.tree);
-      showToast("Listo", "Arbol dibujado en Excel", "success");
+      showToast("Listo", "Árbol dibujado en Excel", "success");
     } catch (error) {
       const message = error instanceof Error ? error.message : String(error);
       setRenderError(message || "Error al dibujar");

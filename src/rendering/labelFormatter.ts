@@ -12,11 +12,11 @@ export function formatCurrency(value: number | null | undefined): string {
 }
 
 export function formatPrimaryMetricLabel(tree: DecisionTreeData): string {
-  return tree.metadata.mode === "minimize" ? "Costo esperado" : "VEN";
+  return tree.metadata.mode === "minimize" ? "Costo esperado" : "Valor esperado";
 }
 
 export function formatTerminalMetricLabel(tree: DecisionTreeData): string {
-  return tree.metadata.mode === "minimize" ? "Costo terminal" : "VAN terminal";
+  return tree.metadata.mode === "minimize" ? "Costo terminal" : "Resultado terminal";
 }
 
 export function buildNodeTitle(node: LayoutNode): string {

@@ -65,7 +65,7 @@ function treeReducer(state: TreeState, action: FullAction): TreeState {
     case "SET_TREE":
       return { ...state, tree: autoCalculate(action.data), selectedNodeId: null };
     case "CLEAR_TREE":
-      return { ...state, tree: createEmptyTree("Nuevo Arbol", action.mode ?? "maximize"), selectedNodeId: null };
+      return { ...state, tree: createEmptyTree("Nuevo análisis", action.mode ?? "maximize"), selectedNodeId: null };
     case "SET_EXPECTED_VALUES": {
       // Manual calculate (still supported)
       const nodes = { ...state.tree.nodes };

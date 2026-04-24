@@ -34,7 +34,7 @@ export function CalculationResults() {
           </svg>
         </div>
         <h3>Sin resultados</h3>
-        <p>Construi un arbol en la pestana "Arbol". Los valores se calculan automaticamente.</p>
+        <p>Armá el árbol en la pestaña "Armar". Los valores se calculan automáticamente.</p>
       </div>
     );
   }
@@ -43,9 +43,9 @@ export function CalculationResults() {
   const isPositive = tree.metadata.mode === "maximize" ? (rootEV ?? 0) >= 0 : true;
   const rootLabel =
     tree.metadata.mode === "minimize"
-      ? "Costo esperado (raiz)"
-      : "Valor esperado neto (raiz)";
-  const detailMetricLabel = tree.metadata.mode === "minimize" ? "Costo" : "VEN";
+      ? "Costo esperado"
+      : "Valor esperado";
+  const detailMetricLabel = tree.metadata.mode === "minimize" ? "Costo esperado" : "Valor esperado";
 
   const nodeRows = Object.values(tree.nodes)
     .filter((node) => node.expectedValue !== null)
@@ -66,7 +66,7 @@ export function CalculationResults() {
       </div>
 
       <div className="results-section">
-        <h3>Estrategia Optima</h3>
+        <h3>Camino recomendado</h3>
         <div className="optimal-strategy">
           <pre>{strategy}</pre>
         </div>
@@ -92,7 +92,7 @@ export function CalculationResults() {
                   {node.label}
                 </td>
                 <td style={{ color: "var(--text-muted)", fontSize: 11 }}>
-                  {{ decision: "Decision", chance: "Chance", end: "Resultado" }[node.type]}
+                  {{ decision: "Decisión", chance: "Incertidumbre", end: "Resultado final" }[node.type]}
                 </td>
                 <td style={{ textAlign: "right", fontFamily: "Montserrat, sans-serif", fontWeight: 600 }}>
                   ${node.expectedValue?.toLocaleString("es-AR", { maximumFractionDigits: 0 }) ?? "-"}

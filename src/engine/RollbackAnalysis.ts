@@ -71,7 +71,7 @@ export function describeOptimalStrategy(
 ): string {
   const parts: string[] = [];
 
-  if (!tree.rootId) return "Arbol vacio";
+  if (!tree.rootId) return "Árbol vacío";
 
   function describe(nodeId: string, depth: number) {
     const node = tree.nodes[nodeId];
@@ -79,7 +79,7 @@ export function describeOptimalStrategy(
 
     const indent = "  ".repeat(depth);
     const ev = evMap[nodeId];
-    const metricLabel = tree.metadata.mode === "minimize" ? "Costo esp." : "VEN";
+    const metricLabel = tree.metadata.mode === "minimize" ? "Costo esperado" : "Valor esperado";
     const evStr =
       ev !== null
         ? ` (${metricLabel}: $${ev.toLocaleString("es-AR", { maximumFractionDigits: 0 })})`

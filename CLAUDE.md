@@ -1,6 +1,10 @@
 # addin-decision-tree
 
-Office Add-in de Excel para construir, evaluar y renderizar árboles de decisión. Usuario target: Bárbara Fernández (Quintana Energy, ingeniería workovers).
+Office Add-in de Excel para construir, evaluar y renderizar árboles de decisión aplicados a industria petrolera. Usuario target: Bárbara Fernández (Quintana Energy, ingeniería de workovers y decisiones de campo).
+
+## Diseño y lenguaje de producto
+
+**Antes de tocar visual, terminología o layout, leer `DESIGN.md`.** Todas las decisiones de color, tipografía, copy, layout del taskpane y del entregable Excel/PDF viven ahí. El branding es Quintana (Verde Oliva `#6B7B38` principal, Montserrat + Inter). El entregable debe poder imprimirse y distribuirse como PDF.
 
 ## Skill routing
 

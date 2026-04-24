@@ -56,8 +56,8 @@ function AppInner() {
   const drawApi = useDrawTree(showToast);
 
   const tabs = [
-    { id: "build" as const, label: "Arbol" },
-    { id: "results" as const, label: "Resultados" },
+    { id: "build" as const, label: "Armar" },
+    { id: "results" as const, label: "Resultado" },
   ];
 
   const activeTab = state.activeTab === "sensitivity" ? "build" : state.activeTab;
@@ -72,7 +72,7 @@ function AppInner() {
 
       <div className="app-header">
         <div>
-          <h1>Arbol de Decision</h1>
+          <h1>Análisis de decisión</h1>
           <div className="subtitle">Quintana Energy</div>
         </div>
         <div className="brand-bar" />
@@ -80,12 +80,16 @@ function AppInner() {
 
       <Toolbar showToast={showToast} drawApi={drawApi} />
 
-      <div className="tab-bar">
+      <div className="tab-bar" role="tablist">
         {tabs.map((tab) => (
           <button
             key={tab.id}
             className={`tab-btn ${activeTab === tab.id ? "active" : ""}`}
             onClick={() => dispatch({ type: "SET_TAB", tab: tab.id })}
+            role="tab"
+            aria-selected={activeTab === tab.id}
+            id={`tab-${tab.id}`}
+            aria-controls={`tabpanel-${tab.id}`}
           >
             {tab.label}
           </button>

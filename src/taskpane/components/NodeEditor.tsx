@@ -86,7 +86,7 @@ export function NodeEditor() {
         <div className={`node-badge ${node.type}`} style={{ width: 18, height: 18, fontSize: 9 }}>
           {{ decision: "D", chance: "C", end: "R" }[node.type]}
         </div>
-        <h4>Editar Nodo</h4>
+        <h4>Editar nodo</h4>
       </div>
 
       {/* Name */}
@@ -98,18 +98,33 @@ export function NodeEditor() {
       {/* Type */}
       <div className="field">
         <label>Tipo</label>
-        <div className="type-selector">
+        <div className="type-selector" role="radiogroup" aria-label="Tipo de nodo">
           <div className={`type-option ${node.type === "decision" ? "active decision" : ""}`}
-               onClick={() => handleTypeChange("decision")}>
-            Decision
+               onClick={() => handleTypeChange("decision")}
+               onKeyDown={(e) => { if (e.key === "Enter" || e.key === " ") { e.preventDefault(); handleTypeChange("decision"); } }}
+               role="radio"
+               aria-checked={node.type === "decision"}
+               tabIndex={0}
+               title="Vos elegís entre alternativas">
+            Decisión
           </div>
           <div className={`type-option ${node.type === "chance" ? "active chance" : ""}`}
-               onClick={() => handleTypeChange("chance")}>
-            Chance
+               onClick={() => handleTypeChange("chance")}
+               onKeyDown={(e) => { if (e.key === "Enter" || e.key === " ") { e.preventDefault(); handleTypeChange("chance"); } }}
+               role="radio"
+               aria-checked={node.type === "chance"}
+               tabIndex={0}
+               title="El pozo, el mercado o la naturaleza responden">
+            Incertidumbre
           </div>
           <div className={`type-option ${node.type === "end" ? "active end" : ""}`}
-               onClick={() => handleTypeChange("end")}>
-            Resultado
+               onClick={() => handleTypeChange("end")}
+               onKeyDown={(e) => { if (e.key === "Enter" || e.key === " ") { e.preventDefault(); handleTypeChange("end"); } }}
+               role="radio"
+               aria-checked={node.type === "end"}
+               tabIndex={0}
+               title="Resultado final de una rama">
+            Resultado final
           </div>
         </div>
       </div>
@@ -181,7 +196,7 @@ export function NodeEditor() {
 
       {/* Cost */}
       <div className="field">
-        <label>Costo de rama (USD)</label>
+        <label>Costo de rama ($)</label>
         <input
           type="number"
           value={node.cost ?? ""}
@@ -206,7 +221,7 @@ export function NodeEditor() {
       {node.type === "end" && (
         <>
           <div className="field">
-            <label>Valor / VAN terminal (USD)</label>
+            <label>Resultado ($)</label>
             <input
               type="number"
               className="money"
@@ -215,7 +230,7 @@ export function NodeEditor() {
               step="10000"
             />
             <div className="hint">
-              Ingresa el VAN terminal o payoff directo. El arbol recalcula solo y al dibujarlo en Excel queda reflejado en el diagrama.{" "}
+              Ingresá el VAN terminal o el resultado directo. El árbol recalcula solo y al dibujarlo en Excel queda reflejado en el diagrama.{" "}
               <a href="#" onClick={(e) => { e.preventDefault(); setShowVan(!showVan); }}
                  style={{ color: "var(--qe-azul)", textDecoration: "underline" }}>
                 {showVan ? "Cerrar" : "Calcular VAN"}
@@ -261,7 +276,7 @@ export function NodeEditor() {
       {/* Expected Value display */}
       {node.expectedValue !== null && (
         <div className="field" style={{ marginTop: 4 }}>
-          <label>Valor esperado neto</label>
+          <label>{state.tree.metadata.mode === "minimize" ? "Costo esperado" : "Valor esperado"}</label>
           <div className={`ev-badge ${node.expectedValue >= 0 ? "positive" : "negative"}`}>
             ${node.expectedValue.toLocaleString("es-AR", { maximumFractionDigits: 0 })}
           </div>

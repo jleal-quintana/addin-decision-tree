@@ -4,7 +4,7 @@ export function oilDrillingExample(): DecisionTreeData {
   return {
     rootId: "root",
     metadata: {
-      name: "Perforacion de Pozo",
+      name: "Perforación de pozo",
       createdAt: new Date().toISOString(),
       updatedAt: new Date().toISOString(),
       mode: "maximize",
@@ -93,7 +93,7 @@ export function productLaunchExample(): DecisionTreeData {
   return {
     rootId: "root",
     metadata: {
-      name: "Lanzamiento de Producto",
+      name: "Lanzamiento de producto",
       createdAt: new Date().toISOString(),
       updatedAt: new Date().toISOString(),
       mode: "maximize",
@@ -197,7 +197,7 @@ export function workoverExample(): DecisionTreeData {
   return {
     rootId: "wo_root",
     metadata: {
-      name: "Workover de Pozo",
+      name: "Workover de pozo",
       createdAt: new Date().toISOString(),
       updatedAt: new Date().toISOString(),
       mode: "minimize",
