@@ -31,6 +31,9 @@ interface NodeTheme {
   geometricType: Excel.GeometricShapeType;
 }
 
+// Excel acepta estos strings exactos en addGeometricShape. Nota: para triángulo
+// isósceles la API toma "Triangle" (no "IsoscelesTriangle"), y fallaba con
+// "argument invalid" cuando usábamos ese otro nombre.
 const NODE_THEMES: Record<ShapeType, NodeTheme> = {
   decision: {
     fill: RENDER_TOKENS.decision.fill,
@@ -48,7 +51,7 @@ const NODE_THEMES: Record<ShapeType, NodeTheme> = {
     fill: RENDER_TOKENS.end.fill,
     border: RENDER_TOKENS.end.border,
     text: RENDER_TOKENS.end.text,
-    geometricType: "IsoscelesTriangle" as Excel.GeometricShapeType,
+    geometricType: "Triangle" as Excel.GeometricShapeType,
   },
 };
 
