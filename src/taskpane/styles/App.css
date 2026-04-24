@@ -93,13 +93,33 @@ body {
 }
 
 /* Toolbar */
+.toolbar-stack {
+  background: var(--bg-card);
+  border-bottom: 1px solid var(--border);
+  flex-shrink: 0;
+}
+
+.toolbar-message {
+  margin: 8px 12px 0;
+  padding: 9px 12px;
+  border-radius: var(--radius-sm);
+  font-size: 12px;
+  font-weight: 600;
+  box-shadow: var(--shadow-sm);
+}
+
+.toolbar-message-error {
+  background: #fef2f2;
+  color: #b42318;
+  border: 1px solid #f3b0ab;
+}
+
 .toolbar {
   display: flex;
   flex-wrap: wrap;
   gap: 4px;
   padding: 8px 12px;
   background: var(--bg-card);
-  border-bottom: 1px solid var(--border);
   flex-shrink: 0;
 }
 

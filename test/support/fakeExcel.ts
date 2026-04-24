@@ -73,10 +73,10 @@ interface CellState {
 
 class FakeShape {
   name = "";
-  left = 0;
-  top = 0;
-  width = 0;
-  height = 0;
+  private _left = 0;
+  private _top = 0;
+  private _width = 0;
+  private _height = 0;
   placement = "";
   deleted = false;
   fill = {
@@ -118,6 +118,50 @@ class FakeShape {
 
   constructor(private readonly owner: FakeShapesCollection, public readonly kind: string) {}
 
+  set left(value: number) {
+    if (!Number.isFinite(value)) {
+      throw new Error(`Shape.left invalido: ${value}`);
+    }
+    this._left = value;
+  }
+
+  get left() {
+    return this._left;
+  }
+
+  set top(value: number) {
+    if (!Number.isFinite(value)) {
+      throw new Error(`Shape.top invalido: ${value}`);
+    }
+    this._top = value;
+  }
+
+  get top() {
+    return this._top;
+  }
+
+  set width(value: number) {
+    if (!Number.isFinite(value)) {
+      throw new Error(`Shape.width invalido: ${value}`);
+    }
+    this._width = value;
+  }
+
+  get width() {
+    return this._width;
+  }
+
+  set height(value: number) {
+    if (!Number.isFinite(value)) {
+      throw new Error(`Shape.height invalido: ${value}`);
+    }
+    this._height = value;
+  }
+
+  get height() {
+    return this._height;
+  }
+
   delete() {
     this.deleted = true;
     this.owner.items = this.owner.items.filter((shape) => shape !== this);
@@ -130,6 +174,9 @@ class FakeShapesCollection {
   load(_value: string) {}
 
   addGeometricShape(kind: string) {
+    if (!/^[A-Z]/.test(kind)) {
+      throw new Error(`geometricType debe ser PascalCase, recibido: ${kind}`);
+    }
     const shape = new FakeShape(this, kind);
     this.items.push(shape);
     return shape as unknown as Excel.Shape;
@@ -262,7 +309,13 @@ class FakeRange {
     this.worksheet.clearRange(this.address);
   }
 
-  merge() {}
+  merge() {
+    this.worksheet.mergeCalls += 1;
+  }
+
+  unmerge() {
+    this.worksheet.unmergeCalls += 1;
+  }
 
   getEntireColumn() {
     return { columnHidden: false };
@@ -282,6 +335,8 @@ class FakeWorksheet {
   visibility = "Visible";
   showGridlines = true;
   activated = false;
+  mergeCalls = 0;
+  unmergeCalls = 0;
   readonly shapes = new FakeShapesCollection();
   readonly ranges = new Map<string, FakeRange>();
   readonly columnWidths = new Map<number, number>();
@@ -414,6 +469,11 @@ export function installFakeExcel() {
       hidden: "Hidden",
       veryHidden: "VeryHidden",
     },
+    ConnectorType: {
+      elbow: "Elbow",
+      straight: "Straight",
+      curve: "Curve",
+    },
     ClearApplyTo: {
       all: "All",
     },
@@ -433,4 +493,8 @@ export function getRange(
   address: string
 ): FakeRange | undefined {
   return getWorksheet(context, sheetName)?.ranges.get(address);
+}
+
+export function getUnmergeCallCount(context: FakeRequestContext, sheetName: string): number {
+  return getWorksheet(context, sheetName)?.unmergeCalls ?? 0;
 }
