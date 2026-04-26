@@ -36,8 +36,10 @@ export const SHAPE_ROW_HEIGHT = 36;
 export const EDGE_COLORS = {
   normal: QUINTANA.marine,
   optimal: QUINTANA.olive,
-  normalWeight: 1.5,
-  optimalWeight: 2.5,
+  // Excel ShapeLineFormat.weight rechaza floats con "argument invalid" en
+  // Excel Win32 16.x — debe ser entero (puntos de espesor).
+  normalWeight: 2,
+  optimalWeight: 3,
 };
 
 export const OPTIMAL_BORDER_COLOR = QUINTANA.olive;

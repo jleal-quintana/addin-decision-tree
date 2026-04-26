@@ -1,10 +1,10 @@
-import { isDebugEnabled, runTrackedOperation } from "../debug/excelDiagnostics";
+import { isDebugEnabled, logDiagnostic, runTrackedOperation } from "../debug/excelDiagnostics";
 import {
   CalcTablePlacement,
   calculationTableRowCount,
   writeCalculationTable,
 } from "../excel/CalculationSheet";
-import { rangeAddr } from "../excel/ExcelAddress";
+import { cellAddr, rangeAddr } from "../excel/ExcelAddress";
 import { CALC_SHEET_NAME, TREE_SHEET_NAME } from "../excel/WorkbookConstants";
 import {
   CalcSheetMetadata,
@@ -99,7 +99,7 @@ function setRowBandValue(
   col: number,
   row: number,
   cols: number,
-  value: string
+  value: string | number | boolean
 ): Excel.Range {
   const band = sheet.getRange(rangeAddr(col, row, cols, 1));
   band.unmerge();
@@ -150,7 +150,8 @@ async function clearWorksheet(sheet: Excel.Worksheet): Promise<void> {
 
 function formatCurrencyAr(value: number | null): string {
   if (value === null || value === undefined || !Number.isFinite(value)) return "N/D";
-  return `$${value.toLocaleString("es-AR", { maximumFractionDigits: 0 })}`;
+  const sign = value < 0 ? "-" : "";
+  return `${sign}$${Math.abs(value).toLocaleString("es-AR", { maximumFractionDigits: 0 })}`;
 }
 
 function formatDateAr(iso: string): string {
@@ -324,15 +325,17 @@ function writeNodeCells(
 }
 
 /**
- * Conector con geometría desde el rect real del shape: centro-derecha del
- * origen → centro-izquierda del destino. Sin offsets hardcodeados.
+ * Crea el conector elbow con coords absolutas (sin anclar todavía). El anclaje
+ * shape-a-shape se hace después en `anchorEdgeToShapes` con su propio sync,
+ * porque connectBeginShape/connectEndShape pueden fallar en algunos hosts y
+ * Office.js solo reporta el error al sync (try/catch sincrónico no sirve).
  */
-function createEdgeConnector(
+function addEdgeLine(
   sheet: Excel.Worksheet,
   edge: LayoutResult["edges"][number],
   fromRect: NodeRect,
   toRect: NodeRect
-): void {
+): Excel.Shape {
   const beginLeft = fromRect.left + fromRect.width;
   const beginTop = fromRect.top + SHAPE_ROW_HEIGHT / 2;
   const endLeft = toRect.left;
@@ -345,13 +348,15 @@ function createEdgeConnector(
     endTop,
     Excel.ConnectorType.elbow
   );
-
   line.name = `${SHAPE_PREFIX}EDGE_${edge.fromId}_${edge.toId}`;
-  setShapePlacement(line);
-  line.line.endArrowheadStyle = "Triangle";
-  line.line.endArrowheadLength = "Medium";
-  line.line.endArrowheadWidth = "Medium";
-  line.line.beginArrowheadStyle = "None";
+  return line;
+}
+
+function styleEdgeLine(line: Excel.Shape, edge: LayoutResult["edges"][number]): void {
+  // OJO: Shape NO tiene `.line`. Arrowheads no son configurables vía Office.js
+  // (ShapeLineFormat solo expone color/weight/visible/dashStyle/style/
+  // transparency). Si necesitamos cambiar arrowhead, hay que tocar el XML del
+  // shape (out of scope).
   line.lineFormat.visible = true;
   line.lineFormat.color = edge.isOptimal ? EDGE_COLORS.optimal : EDGE_COLORS.normal;
   line.lineFormat.weight = edge.isOptimal ? EDGE_COLORS.optimalWeight : EDGE_COLORS.normalWeight;
@@ -443,15 +448,41 @@ function renderRecommendationBox(
 /**
  * Tabla de resumen de caminos (header olive, filas alternas, fila óptima destacada).
  */
+function buildPathValueFormula(
+  path: PathRow,
+  metadata: CalcSheetMetadata,
+  isCost: boolean
+): string | null {
+  const terminalId = path.ids[path.ids.length - 1];
+  const terminalRef = metadata.nodeRefs[terminalId];
+  if (!terminalRef) return null;
+
+  // root no aporta cost al path (parity con enumeratePaths). costs vienen de
+  // los nodos siguientes hasta el end inclusive.
+  const costAddrs: string[] = [];
+  for (let idx = 1; idx < path.ids.length; idx++) {
+    const nodeRef = metadata.nodeRefs[path.ids[idx]];
+    if (nodeRef) costAddrs.push(`N(${nodeRef.costAddress})`);
+  }
+
+  const signOp = isCost ? "+" : "-";
+  if (costAddrs.length === 0) {
+    return `=N(${terminalRef.terminalValueAddress})`;
+  }
+  return `=N(${terminalRef.terminalValueAddress})${signOp}(${costAddrs.join("+")})`;
+}
+
 function renderPathsTable(
   sheet: Excel.Worksheet,
   row: number,
   totalCols: number,
   tree: DecisionTreeData,
-  paths: PathRow[]
+  paths: PathRow[],
+  metadata: CalcSheetMetadata
 ): number {
   const cols = totalCols;
   const isCost = tree.metadata.mode === "minimize";
+  const rootRef = tree.rootId ? metadata.nodeRefs[tree.rootId] : undefined;
 
   const heading = setRowBandValue(sheet, 0, row, cols, "RESUMEN DE CAMINOS");
   heading.format.font.name = "Calibri";
@@ -463,11 +494,17 @@ function renderPathsTable(
 
   const headerRow = row + 1;
   const pathColSpan = Math.max(cols - 9, 6);
+  // Headers AG/AJ: "total del camino" deja claro que es el costo/valor
+  // ACUMULADO desde la raíz (suma terminal + costs intermedios), distinto
+  // del NetEV por nodo de la memoria de cálculo (columna J). La nota explica
+  // la diferencia abajo de la tabla.
+  const totalColLabel = isCost ? "Costo total del camino" : "Valor total del camino";
+  const diffColLabel = isCost ? "Vs costo esperado" : "Vs valor esperado";
   const colLayout = [
     { label: "Camino", col: 0, span: pathColSpan, align: "Left" as const },
     { label: "Probabilidad", col: pathColSpan, span: 3, align: "Center" as const },
-    { label: isCost ? "Costo esperado" : "Valor esperado", col: pathColSpan + 3, span: 3, align: "Right" as const },
-    { label: "Vs recomendado", col: pathColSpan + 6, span: 3, align: "Right" as const },
+    { label: totalColLabel, col: pathColSpan + 3, span: 3, align: "Right" as const },
+    { label: diffColLabel, col: pathColSpan + 6, span: 3, align: "Right" as const },
   ];
 
   for (const c of colLayout) {
@@ -488,15 +525,65 @@ function renderPathsTable(
     const rowFill = p.isOptimal ? QUINTANA.limeTenue : i % 2 === 0 ? QUINTANA.paper : QUINTANA.slateTenue;
     const rowWeight: "Bold" | "Regular" = p.isOptimal ? "Bold" : "Regular";
 
-    const valuesByCol: Array<{ col: number; span: number; text: string; align: "Left" | "Center" | "Right" }> = [
-      { col: colLayout[0].col, span: colLayout[0].span, text: p.label, align: "Left" },
-      { col: colLayout[1].col, span: colLayout[1].span, text: `${(p.probability * 100).toFixed(1)}%`, align: "Center" },
-      { col: colLayout[2].col, span: colLayout[2].span, text: formatCurrencyAr(p.value), align: "Right" },
-      { col: colLayout[3].col, span: colLayout[3].span, text: p.isOptimal ? "—" : formatCurrencyAr(p.diff), align: "Right" },
+    // Columnas numéricas se escriben como FÓRMULAS que referencian el calc
+    // table (memoria de cálculo). Si el usuario edita un cost o terminalValue
+    // en J/G/H, esta tabla se recalcula automáticamente. Antes eran valores
+    // literales (snapshot del momento del render) y se desincronizaban.
+    //
+    // - "Costo/Valor esperado" = N(terminalValue) ± (sum N(cost) de cada nodo
+    //   no-root del path). Sign: + en modo Costo, - en modo Valor.
+    // - "Vs recomendado" = valueFormula - netEvAddress(root). Diferencia entre
+    //   este camino y el costo/valor esperado del árbol. Para el path óptimo
+    //   se muestra "—" (no aplica diferencia consigo mismo en sentido estricto).
+    const valueFormula = buildPathValueFormula(p, metadata, isCost);
+    const diffFormula =
+      valueFormula && rootRef
+        ? `=(${valueFormula.slice(1)})-${rootRef.netEvAddress}`
+        : null;
+
+    type CellSpec = {
+      col: number;
+      span: number;
+      align: "Left" | "Center" | "Right";
+      kind: "text" | "formula" | "number";
+      text?: string;
+      formula?: string;
+      number?: number;
+      numberFormat?: string;
+    };
+    // Convención: TODOS los paths muestran su delta vs rootNetEv (incluso 0
+    // para los óptimos). El reviewer pedía consistencia — antes había guion
+    // para óptimos y número para no-óptimos, mezcla difícil de auditar.
+    const valuesByCol: CellSpec[] = [
+      { col: colLayout[0].col, span: colLayout[0].span, kind: "text", text: p.label, align: "Left" },
+      { col: colLayout[1].col, span: colLayout[1].span, kind: "text", text: `${(p.probability * 100).toFixed(1)}%`, align: "Center" },
+      valueFormula
+        ? { col: colLayout[2].col, span: colLayout[2].span, kind: "formula", formula: valueFormula, numberFormat: "$#,##0", align: "Right" }
+        : { col: colLayout[2].col, span: colLayout[2].span, kind: "number", number: p.value, numberFormat: "$#,##0", align: "Right" },
+      diffFormula
+        ? { col: colLayout[3].col, span: colLayout[3].span, kind: "formula", formula: diffFormula, numberFormat: "$#,##0;[Red]-$#,##0", align: "Right" }
+        : { col: colLayout[3].col, span: colLayout[3].span, kind: "number", number: p.diff, numberFormat: "$#,##0;[Red]-$#,##0", align: "Right" },
     ];
 
     for (const v of valuesByCol) {
-      const r = setRowBandValue(sheet, v.col, curRow, v.span, v.text);
+      let r: Excel.Range;
+      if (v.kind === "formula") {
+        // setRowBandValue maneja merge + setea topLeft.values; acá hacemos
+        // lo mismo pero seteando topLeft.formulas para que sea fórmula viva.
+        const band = sheet.getRange(rangeAddr(v.col, curRow, v.span, 1));
+        band.unmerge();
+        if (v.span > 1) band.merge();
+        r = sheet.getCell(curRow, v.col);
+        r.formulas = [[v.formula ?? ""]];
+      } else {
+        r =
+          v.kind === "number"
+            ? setRowBandValue(sheet, v.col, curRow, v.span, v.number ?? 0)
+            : setRowBandValue(sheet, v.col, curRow, v.span, v.text ?? "");
+      }
+      if (v.numberFormat && (v.kind === "number" || v.kind === "formula")) {
+        r.numberFormat = [[v.numberFormat]];
+      }
       r.format.fill.color = rowFill;
       r.format.font.name = "Calibri";
       r.format.font.size = 10;
@@ -516,6 +603,22 @@ function renderPathsTable(
     note.format.font.color = QUINTANA.inkMuted;
     curRow++;
   }
+
+  // Nota explicativa: la columna AG suma costos del path desde raíz
+  // (interpretación "qué te cuesta este camino completo"); la columna J de
+  // la memoria de cálculo es NetEV por nodo (no acumula costos del padre).
+  // Por eso ambos pueden diferir aunque el árbol esté bien.
+  const explanationText = isCost
+    ? "Nota: el costo total del camino acumula los costos desde la raíz (CAPEX + costos intermedios + costo terminal). Difiere del NetEV por nodo (columna J de la memoria de cálculo) — ese muestra el costo del nodo en sí, sin acumular el del padre."
+    : "Nota: el valor total del camino acumula payoffs y costos desde la raíz. Difiere del NetEV por nodo (columna J de la memoria de cálculo) — ese muestra el valor del nodo en sí, sin acumular el del padre.";
+  const explanation = setRowBandValue(sheet, 0, curRow, cols, explanationText);
+  explanation.format.font.name = "Calibri";
+  explanation.format.font.size = 8;
+  explanation.format.font.italic = true;
+  explanation.format.font.color = QUINTANA.inkMuted;
+  explanation.format.horizontalAlignment = "Left";
+  sheet.getRange(rangeAddr(0, curRow, cols, 1)).format.rowHeight = 14;
+  curRow++;
 
   return curRow + 1;
 }
@@ -598,8 +701,11 @@ export async function renderToExcel(
 
         await clearWorksheet(treeSheet);
 
-        // totalCols es cantidad; lastColIdx es índice 0-based de la última columna.
-        const totalCols = Math.max(layout.maxCol + GRID.colGap + 24, 40);
+        // totalCols = cantidad de columnas usadas. Termina 2 cols después de
+        // la última columna del árbol (layout.maxCol es índice del nodo más
+        // a la derecha; el nodo ocupa GRID.nodeCols). Mínimo 24 para que la
+        // tabla de caminos y header tengan espacio razonable.
+        const totalCols = Math.max(layout.maxCol + GRID.nodeCols + 2, 24);
         const lastColIdx = totalCols - 1;
         // No forzamos columnWidth de todas las columnas. Antes las ponía en 9 y
         // los valores con formato moneda se mostraban como "####". Dejamos el
@@ -663,62 +769,156 @@ export async function renderToExcel(
           }
         }
 
+        // Para cada edge: 3 pasos aislados con su propio sync. Si el anclaje
+        // shape-a-shape falla en algún host, la línea libre (con coords abs)
+        // ya quedó dibujada y el render sigue. Cada paso loggea su propio
+        // success/error en DT_DebugLog así sabemos exactamente dónde rompe.
         for (const edge of layout.edges) {
           const fromRect = assertValidNodeRect(edge.fromId, nodeRects[edge.fromId], "edge.from");
           const toRect = assertValidNodeRect(edge.toId, nodeRects[edge.toId], "edge.to");
-
           const renderEdge = renderEdgeByKey[`${edge.fromId}-${edge.toId}`];
+          const edgeKey = `${edge.fromId}->${edge.toId}`;
+
+          // Paso 1a: addLine + name (sync solo).
+          let line: Excel.Shape | null = null;
           try {
-            writeRenderDebug(treeSheet, `Conector ${edge.fromId}->${edge.toId}`);
-            createEdgeConnector(treeSheet, edge, fromRect, toRect);
+            line = addEdgeLine(treeSheet, edge, fromRect, toRect);
+            await context.sync();
+            logDiagnostic(`edge.add ${edgeKey}`, "success");
+          } catch (error) {
+            const msg = error instanceof Error ? `${error.name}: ${error.message}` : String(error);
+            logDiagnostic(`edge.add ${edgeKey}`, "error", { error: msg });
+            try {
+              await context.sync();
+            } catch {
+              /* ignore */
+            }
+            continue;
+          }
+
+          // Paso 1b: lineFormat dividido en 3 sub-pasos para aislar cuál
+          // property rompe en este host. Antes hacíamos visible+color+weight
+          // en una sola sync y caía universalmente con "argument invalid";
+          // separados sabemos cuál exactamente.
+          const targetColor = edge.isOptimal ? EDGE_COLORS.optimal : EDGE_COLORS.normal;
+          const targetWeight = edge.isOptimal ? EDGE_COLORS.optimalWeight : EDGE_COLORS.normalWeight;
+
+          try {
+            line.lineFormat.visible = true;
+            await context.sync();
+            logDiagnostic(`edge.style.visible ${edgeKey}`, "success");
+          } catch (error) {
+            const msg = error instanceof Error ? `${error.name}: ${error.message}` : String(error);
+            logDiagnostic(`edge.style.visible ${edgeKey}`, "error", { error: msg });
+            try { await context.sync(); } catch { /* ignore */ }
+          }
+
+          try {
+            line.lineFormat.color = targetColor;
+            await context.sync();
+            logDiagnostic(`edge.style.color ${edgeKey}`, "success", { color: targetColor });
+          } catch (error) {
+            const msg = error instanceof Error ? `${error.name}: ${error.message}` : String(error);
+            logDiagnostic(`edge.style.color ${edgeKey}`, "error", { color: targetColor, error: msg });
+            try { await context.sync(); } catch { /* ignore */ }
+          }
+
+          try {
+            line.lineFormat.weight = targetWeight;
+            await context.sync();
+            logDiagnostic(`edge.style.weight ${edgeKey}`, "success", { weight: targetWeight });
+          } catch (error) {
+            const msg = error instanceof Error ? `${error.name}: ${error.message}` : String(error);
+            logDiagnostic(`edge.style.weight ${edgeKey}`, "error", { weight: targetWeight, error: msg });
+            try { await context.sync(); } catch { /* ignore */ }
+          }
+
+          // Paso 1c: placement = oneCell. Falla en algunos hosts para Lines.
+          try {
+            setShapePlacement(line);
+            await context.sync();
+            logDiagnostic(`edge.placement ${edgeKey}`, "success");
+          } catch (error) {
+            const msg = error instanceof Error ? `${error.name}: ${error.message}` : String(error);
+            logDiagnostic(`edge.placement ${edgeKey}`, "error", { error: msg });
+            try {
+              await context.sync();
+            } catch {
+              /* ignore */
+            }
+          }
+
+          // Paso 1d: label cells (puede fallar por overlap de merges).
+          try {
             writeEdgeLabelCells(treeSheet, edge, renderEdge?.label ?? "");
             await context.sync();
+            logDiagnostic(`edge.label ${edgeKey}`, "success");
           } catch (error) {
-            writeRenderDebug(
-              treeSheet,
-              `Error en conector ${edge.fromId}->${edge.toId}`,
-              error instanceof Error ? error.message : String(error)
-            );
-            await context.sync();
-            throw error;
+            const msg = error instanceof Error ? `${error.name}: ${error.message}` : String(error);
+            logDiagnostic(`edge.label ${edgeKey}`, "error", { error: msg });
+            try {
+              await context.sync();
+            } catch {
+              /* ignore */
+            }
           }
         }
 
-        // Secciones inferiores del documento:
-        // memoria de cálculo (inline, referenciada por los shapes) → leyenda →
-        // recomendación → tabla de caminos → footer.
-        const treeEndRow = layout.maxRow + GRID.rowGap;
-        let cursor = treeEndRow;
-        await writeCalculationTable(treeSheet, tree, calcPlacement);
-        cursor = calcPlacement.startRow + calculationTableRowCount(tree);
-        await context.sync();
+        // Secciones inferiores del documento. Cada una se ejecuta dentro de un
+        // try/catch + sync: si una falla, la siguiente igual se intenta y el
+        // documento queda parcialmente armado en lugar de morir entero.
+        // Cuando algo explota, el motivo queda en A3:A4 (writeRenderDebug).
+        let cursor = calcPlacement.startRow;
+        const safeSection = async (name: string, fn: () => number | Promise<number>): Promise<void> => {
+          try {
+            const next = await fn();
+            cursor = next;
+            await context.sync();
+          } catch (error) {
+            const msg = error instanceof Error ? error.message : String(error);
+            writeRenderDebug(treeSheet, `Falló sección ${name}`, msg);
+            console.error(`[renderToExcel] sección "${name}" falló:`, error);
+            try {
+              await context.sync();
+            } catch {
+              // si el sync de debug también explota, seguimos
+            }
+          }
+        };
 
-        cursor = renderLegend(treeSheet, cursor + 1, totalCols);
+        await safeSection("memoria de cálculo", async () => {
+          await writeCalculationTable(treeSheet, tree, calcPlacement);
+          return calcPlacement.startRow + calculationTableRowCount(tree);
+        });
 
-        const rootNode = tree.rootId ? tree.nodes[tree.rootId] : null;
-        const isCost = tree.metadata.mode === "minimize";
-        const rootLabel = isCost ? "Costo esperado" : "Valor esperado";
-        const recommended = renderModel.summary?.recommendedAction.replace(/^Elegir:\s*/, "") ?? "";
-        const headline = recommended
-          ? `Recomendación: ${recommended}`
-          : "Sin recomendación (el árbol todavía no tiene una decisión clara)";
-        // Preferimos el valor ya renderizado por el pipeline (fuente de verdad visual);
-        // caemos al expectedValue crudo si el summary no está disponible.
-        const summaryValue = renderModel.summary?.rootValue ?? "";
-        const rootEv = rootNode?.expectedValue ?? null;
-        const detail = summaryValue
-          ? `${rootLabel}: ${summaryValue}`
-          : rootEv !== null
-            ? `${rootLabel}: ${formatCurrencyAr(rootEv)}`
-            : "Completá el árbol para ver el resultado esperado.";
-        cursor = renderRecommendationBox(treeSheet, cursor + 1, totalCols, headline, detail);
+        await safeSection("leyenda", async () => renderLegend(treeSheet, cursor + 1, totalCols));
 
-        const paths = enumeratePaths(tree);
-        if (paths.length > 0) {
-          cursor = renderPathsTable(treeSheet, cursor, totalCols, tree, paths);
-        }
+        await safeSection("recomendación", async () => {
+          const rootNode = tree.rootId ? tree.nodes[tree.rootId] : null;
+          const isCost = tree.metadata.mode === "minimize";
+          const rootLabel = isCost ? "Costo esperado del árbol" : "Valor esperado del árbol";
+          const recommended = renderModel.summary?.recommendedAction.replace(/^Elegir:\s*/, "") ?? "";
+          const headline = recommended
+            ? `Recomendación: ${recommended}`
+            : "Sin recomendación (el árbol todavía no tiene una decisión clara)";
+          const summaryValue = renderModel.summary?.rootValue ?? "";
+          const rootEv = rootNode?.expectedValue ?? null;
+          const detail = summaryValue
+            ? summaryValue
+            : rootEv !== null
+              ? `${rootLabel}: ${formatCurrencyAr(rootEv)}`
+              : "Completá el árbol para ver el resultado esperado.";
+          return renderRecommendationBox(treeSheet, cursor + 1, totalCols, headline, detail);
+        });
 
-        cursor = renderFooter(treeSheet, cursor + 1, totalCols);
+        await safeSection("tabla de caminos", async () => {
+          const paths = enumeratePaths(tree);
+          return paths.length > 0
+            ? renderPathsTable(treeSheet, cursor, totalCols, tree, paths, calcSheetMetadata)
+            : cursor;
+        });
+
+        await safeSection("footer", async () => renderFooter(treeSheet, cursor + 1, totalCols));
 
         applyPageSetup(treeSheet, totalCols, cursor);
 

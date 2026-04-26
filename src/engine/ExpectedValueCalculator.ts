@@ -2,7 +2,17 @@ import { DecisionTreeData } from "../models/types";
 
 /**
  * Bottom-up traversal that computes the net expected value for each node.
- * A node's own cost is discounted exactly once when entering that node.
+ * A node's own cost is applied exactly once when entering that node.
+ *
+ * Convención de signos:
+ * - Modo Valor (maximize): payoff = ingreso (+), cost = gasto que resta del
+ *   ingreso. net = payoff - cost. Se maximiza.
+ * - Modo Costo (minimize): payoff = costo terminal (+), cost = costo adicional
+ *   del nodo (+, ej. CAPEX). Ambos suman. net = payoff + cost. Se minimiza.
+ *
+ * En modo Costo, antes el código hacía net = payoff - cost igual que en Valor,
+ * lo cual hacía que el CAPEX "abaratara" el árbol en vez de encarecerlo
+ * (workover salía $15.5k cuando en realidad cuesta $315.5k esperados).
  */
 export function calculateExpectedValues(
   tree: DecisionTreeData
@@ -11,14 +21,18 @@ export function calculateExpectedValues(
 
   if (!tree.rootId) return evMap;
 
+  // En modo Costo, el cost suma; en modo Valor, resta.
+  const costSign = tree.metadata.mode === "minimize" ? +1 : -1;
+
   function compute(nodeId: string): number | null {
     const node = tree.nodes[nodeId];
     if (!node) return null;
 
     const ownCost = node.cost ?? 0;
+    const signedCost = costSign * ownCost;
 
     if (node.type === "end" || node.childIds.length === 0) {
-      const ev = (node.payoff ?? 0) - ownCost;
+      const ev = (node.payoff ?? 0) + signedCost;
       evMap[nodeId] = ev;
       return ev;
     }
@@ -49,7 +63,7 @@ export function calculateExpectedValues(
       childrenEv = pick(...childEVs.map((child) => child.ev));
     }
 
-    const netEv = childrenEv - ownCost;
+    const netEv = childrenEv + signedCost;
     evMap[nodeId] = netEv;
     return netEv;
   }

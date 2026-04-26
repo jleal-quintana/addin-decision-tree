@@ -58,6 +58,15 @@ function pushEntry(
   notify();
 }
 
+export function logDiagnostic(
+  operation: string,
+  status: DiagnosticEntry["status"],
+  details?: Record<string, unknown>,
+  durationMs?: number
+): void {
+  pushEntry(operation, status, details, durationMs);
+}
+
 export function isDebugEnabled(): boolean {
   try {
     const params = new URLSearchParams(window.location.search);
@@ -124,7 +133,20 @@ export async function flushDiagnosticsToWorkbook(): Promise<void> {
         ? context.workbook.worksheets.add(DEBUG_SHEET_NAME)
         : existing;
 
-      sheet.visibility = Excel.SheetVisibility.visible;
+      // Hoja de log oculta para usuarios finales (Bárbara no necesita ver
+      // las 50 filas de "edge.add success"). Para troubleshooting:
+      // click derecho en cualquier pestaña → Mostrar... → DT_DebugLog.
+      // Si se quiere visible inline (dev), poner `?debug=visible` en la URL.
+      const visibleOverride = (() => {
+        try {
+          return new URLSearchParams(window.location.search).get("debug") === "visible";
+        } catch {
+          return false;
+        }
+      })();
+      sheet.visibility = visibleOverride
+        ? Excel.SheetVisibility.visible
+        : Excel.SheetVisibility.hidden;
       const usedRange = sheet.getUsedRangeOrNullObject();
       usedRange.load("address");
       await context.sync();

@@ -8,7 +8,17 @@ function truncate(value: string, maxChars: number): string {
 
 export function formatCurrency(value: number | null | undefined): string {
   if (value === null || value === undefined) return "N/D";
-  return `$${value.toLocaleString("es-AR", { maximumFractionDigits: 0 })}`;
+  const sign = value < 0 ? "-" : "";
+  const abs = Math.abs(value);
+  if (abs >= 1_000_000) {
+    const millions = abs / 1_000_000;
+    const formatted = millions.toLocaleString("es-AR", {
+      minimumFractionDigits: 1,
+      maximumFractionDigits: 1,
+    });
+    return `${sign}$${formatted}MM`;
+  }
+  return `${sign}$${abs.toLocaleString("es-AR", { maximumFractionDigits: 0 })}`;
 }
 
 export function formatPrimaryMetricLabel(tree: DecisionTreeData): string {
@@ -37,7 +47,7 @@ export function buildNodePrimaryValue(tree: DecisionTreeData, node: LayoutNode):
   return `${label}: N/D`;
 }
 
-export function buildNodeSecondaryLines(node: LayoutNode): string[] {
+export function buildNodeSecondaryLines(tree: DecisionTreeData, node: LayoutNode): string[] {
   const parts: string[] = [];
 
   if (node.probability !== null && node.probability > 0) {
@@ -50,7 +60,7 @@ export function buildNodeSecondaryLines(node: LayoutNode): string[] {
     parts.push(node.time);
   }
   if (node.type === "end" && node.payoff !== null) {
-    parts.push(formatCurrency(node.payoff));
+    parts.push(`${formatTerminalMetricLabel(tree)} ${formatCurrency(node.payoff)}`);
   }
 
   return parts
@@ -58,11 +68,29 @@ export function buildNodeSecondaryLines(node: LayoutNode): string[] {
     .map((line) => truncate(line, RENDER_LIMITS.secondaryLineChars));
 }
 
+// Heurística: si un customField numérico coincide con node.cost, es duplicado
+// del campo "Costo" (caso típico: OPEX=120000 con cost=120000). Lo filtramos
+// para no mostrar la misma plata dos veces en el tooltip.
+function isDuplicateOfCost(value: unknown, cost: number | null): boolean {
+  if (cost === null || cost === 0) return false;
+  const numeric = typeof value === "number" ? value : Number(value);
+  return Number.isFinite(numeric) && numeric === cost;
+}
+
+function formatNoteValue(value: unknown): string {
+  const numeric = typeof value === "number" ? value : Number(value);
+  if (typeof value !== "boolean" && Number.isFinite(numeric) && Math.abs(numeric) >= 1000) {
+    return formatCurrency(numeric);
+  }
+  return String(value);
+}
+
 export function buildNodeNoteLines(node: LayoutNode): string[] {
   return Object.entries(node.customFields ?? {})
     .filter(([, value]) => value !== null && value !== undefined && value !== "")
+    .filter(([, value]) => !isDuplicateOfCost(value, node.cost))
     .slice(0, RENDER_LIMITS.maxNoteLines)
-    .map(([key, value]) => truncate(`${key}: ${String(value)}`, RENDER_LIMITS.noteLineChars));
+    .map(([key, value]) => truncate(`${key}: ${formatNoteValue(value)}`, RENDER_LIMITS.noteLineChars));
 }
 
 export function buildEdgeLabel(edge: LayoutEdge, childNode: LayoutNode | undefined): string {

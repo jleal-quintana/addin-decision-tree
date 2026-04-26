@@ -20,7 +20,7 @@ export function buildRenderModel(tree: DecisionTreeData, layout: LayoutResult): 
     id: node.id,
     title: buildNodeTitle(node),
     primaryValue: buildNodePrimaryValue(tree, node),
-    secondaryLines: buildNodeSecondaryLines(node),
+    secondaryLines: buildNodeSecondaryLines(tree, node),
     noteLines: buildNodeNoteLines(node),
     type: node.type,
     isOptimal: node.isOptimal,
@@ -47,7 +47,7 @@ export function buildRenderModel(tree: DecisionTreeData, layout: LayoutResult): 
     summary: rootNode
       ? {
           title: tree.metadata.mode === "minimize" ? "Resumen de costo" : "Resumen de valor",
-          rootValue: `${formatPrimaryMetricLabel(tree)} raiz: ${formatCurrency(summaryValue)}`,
+          rootValue: `${formatPrimaryMetricLabel(tree)} del árbol: ${formatCurrency(summaryValue)}`,
           recommendedAction: `Elegir: ${recommendedChildId ? tree.nodes[recommendedChildId]?.label ?? "-" : "-"}`,
         }
       : null,

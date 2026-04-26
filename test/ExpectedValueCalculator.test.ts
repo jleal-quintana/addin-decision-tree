@@ -15,8 +15,11 @@ describe("ExpectedValueCalculator", () => {
     const tree = workoverExample();
     const evMap = calculateExpectedValues(tree);
 
-    expect(evMap.wo_do).toBe(15500);
-    expect(evMap.wo_root).toBe(15500);
+    // Modo Costo: cost suma. wo_do = 0.65·120k + 0.35·250k + CAPEX 150k = 315.5k.
+    // wo_root = min(315.5k, 320k) = 315.5k → workover sigue ganando, pero por
+    // poco (antes daba 15.5k por bug de signo, una "ganga" falsa).
+    expect(evMap.wo_do).toBe(315500);
+    expect(evMap.wo_root).toBe(315500);
     expect(evMap.wo_no).toBe(320000);
   });
 

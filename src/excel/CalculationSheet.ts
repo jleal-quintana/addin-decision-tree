@@ -166,8 +166,10 @@ export async function writeCalculationTable(
   }
 
   // Fórmulas: ChildrenEV y NetEV. Semántica idéntica al engine TS
-  // (ExpectedValueCalculator): `netEv = childrenEv - cost` uniforme
-  // en modo Valor y Costo.
+  // (ExpectedValueCalculator):
+  //   Modo Valor (max):  netEv = childrenEv - cost  (cost resta)
+  //   Modo Costo (min):  netEv = childrenEv + cost  (cost suma)
+  const costOp = tree.metadata.mode === "minimize" ? "+" : "-";
   for (const nodeId of orderedNodeIds) {
     const node = tree.nodes[nodeId];
     const row = rowByNodeId[nodeId];
@@ -181,7 +183,7 @@ export async function writeCalculationTable(
     if (node.type === "end") {
       childrenEvCell.values = [[""]];
       netEvCell.formulas = [[
-        `=N(${sameSheetRef(placement.startCol + CALC_COLUMN_INDEX.TerminalValue, row)})-N(${sameSheetRef(placement.startCol + CALC_COLUMN_INDEX.Cost, row)})`,
+        `=N(${sameSheetRef(placement.startCol + CALC_COLUMN_INDEX.TerminalValue, row)})${costOp}N(${sameSheetRef(placement.startCol + CALC_COLUMN_INDEX.Cost, row)})`,
       ]];
       continue;
     }
@@ -209,7 +211,7 @@ export async function writeCalculationTable(
     }
 
     netEvCell.formulas = [[
-      `=${sameSheetRef(placement.startCol + CALC_COLUMN_INDEX.ChildrenEV, row)}-N(${sameSheetRef(placement.startCol + CALC_COLUMN_INDEX.Cost, row)})`,
+      `=${sameSheetRef(placement.startCol + CALC_COLUMN_INDEX.ChildrenEV, row)}${costOp}N(${sameSheetRef(placement.startCol + CALC_COLUMN_INDEX.Cost, row)})`,
     ]];
   }
 
@@ -221,9 +223,14 @@ export async function writeCalculationTable(
     const row = firstDataRow + index;
     const node = tree.nodes[nodeId];
 
+    // OptimalChildId solo aplica a nodos de decisión: en chance no se "elige"
+    // un hijo, todos pueden ocurrir según probabilidad.
+    const optimalChildIdValue = node.type === "decision"
+      ? node.childIds.find((childId) => tree.nodes[childId]?.isOptimal) ?? ""
+      : "";
     sheet.getRange(
       cellAddr(placement.startCol + CALC_COLUMN_INDEX.OptimalChildId, row)
-    ).values = [[node.childIds.find((childId) => tree.nodes[childId]?.isOptimal) ?? ""]];
+    ).values = [[optimalChildIdValue]];
     sheet.getRange(
       cellAddr(placement.startCol + CALC_COLUMN_INDEX.IsOptimalPath, row)
     ).values = [[node.isOptimal]];

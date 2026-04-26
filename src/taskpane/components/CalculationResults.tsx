@@ -45,7 +45,8 @@ function AssumptionInput({ nodeId, nodeLabel, probability, onCommit }: Assumptio
 
 function formatCurrency(value: number | null | undefined): string {
   if (value === null || value === undefined) return "—";
-  return `$${value.toLocaleString("es-AR", { maximumFractionDigits: 0 })}`;
+  const sign = value < 0 ? "-" : "";
+  return `${sign}$${Math.abs(value).toLocaleString("es-AR", { maximumFractionDigits: 0 })}`;
 }
 
 function formatPercent(value: number): string {

@@ -1,4 +1,5 @@
 import { DecisionTreeData, TreeNode } from "../models/types";
+import { calculateExpectedValues } from "./ExpectedValueCalculator";
 
 export interface PathRow {
   label: string;
@@ -19,6 +20,9 @@ export function enumeratePaths(tree: DecisionTreeData): PathRow[] {
 
   const rows: PathRow[] = [];
   const parentById = tree.nodes;
+  // Modo Costo: cost suma (es un costo más). Modo Valor: cost resta (gasto que
+  // se descuenta del payoff). Mismo criterio que ExpectedValueCalculator.
+  const costSign = tree.metadata.mode === "minimize" ? +1 : -1;
 
   function walk(
     nodeId: string,
@@ -46,7 +50,7 @@ export function enumeratePaths(tree: DecisionTreeData): PathRow[] {
         label: nextLabels.join(" → "),
         ids: nextIds,
         probability: nextProb,
-        value: payoff - nextCost,
+        value: payoff + costSign * nextCost,
         diff: 0,
         isOptimal: false,
       });
@@ -70,7 +74,13 @@ export function enumeratePaths(tree: DecisionTreeData): PathRow[] {
     row.isOptimal = row.ids.every((id) => optimalNodeIds.has(id));
   }
 
-  const reference = rows.find((r) => r.isOptimal)?.value ?? 0;
+  // Referencia para "Vs recomendado": NetEV del root (= valor/costo esperado
+  // del árbol). Coincide con la fórmula en Excel (=valueFormula - $rootNetEv$),
+  // así engine y Excel reportan el mismo delta. Antes usábamos el value del
+  // primer path óptimo, lo que daba lecturas distintas según qué camino
+  // específico salía primero.
+  const evMap = calculateExpectedValues(tree);
+  const reference = (tree.rootId ? evMap[tree.rootId] : 0) ?? 0;
   for (const row of rows) row.diff = row.value - reference;
 
   return rows.sort(
