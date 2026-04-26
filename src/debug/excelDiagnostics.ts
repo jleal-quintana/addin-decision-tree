@@ -70,14 +70,15 @@ export function logDiagnostic(
 export function isDebugEnabled(): boolean {
   try {
     const params = new URLSearchParams(window.location.search);
-    if (params.get("debug") === "0") return false;
-    if (window.localStorage.getItem("dt-debug") === "0") return false;
+    const flag = params.get("debug");
+    if (flag === "1" || flag === "visible") return true;
+    if (window.localStorage.getItem("dt-debug") === "1") return true;
   } catch {
     // ignore non-browser environments
   }
 
-  if ((globalThis as { __DT_DEBUG__?: boolean }).__DT_DEBUG__ === false) return false;
-  return true;
+  if ((globalThis as { __DT_DEBUG__?: boolean }).__DT_DEBUG__ === true) return true;
+  return false;
 }
 
 export function subscribeDiagnostics(listener: DiagnosticListener): () => void {

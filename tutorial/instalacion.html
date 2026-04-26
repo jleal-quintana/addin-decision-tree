@@ -1,0 +1,288 @@
+<!DOCTYPE html>
+<html lang="es">
+<head>
+<meta charset="UTF-8">
+<title>Instalación · Add-in Árbol de Decisión · Quintana Energy</title>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600&family=Montserrat:wght@600;700&display=swap" rel="stylesheet">
+<style>
+  :root {
+    --olive: #6B7B38;
+    --forest: #33492D;
+    --marine: #1B4B6C;
+    --lime: #E2FF87;
+    --ink: #1A1A1A;
+    --muted: #5A6470;
+    --paper: #FFFFFF;
+    --rule: #E5E7E0;
+  }
+
+  * { box-sizing: border-box; }
+
+  html, body {
+    margin: 0;
+    padding: 0;
+    background: var(--paper);
+    color: var(--ink);
+    font-family: "Inter", system-ui, -apple-system, sans-serif;
+    font-size: 11pt;
+    line-height: 1.55;
+  }
+
+  .page {
+    max-width: 720px;
+    margin: 0 auto;
+    padding: 48px 56px 56px;
+  }
+
+  header.brand {
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    border-bottom: 2px solid var(--olive);
+    padding-bottom: 16px;
+    margin-bottom: 28px;
+  }
+
+  header.brand .logo {
+    height: 44px;
+  }
+
+  header.brand .meta {
+    text-align: right;
+    font-size: 9pt;
+    color: var(--muted);
+    letter-spacing: 0.02em;
+    text-transform: uppercase;
+  }
+
+  h1 {
+    font-family: "Montserrat", sans-serif;
+    font-weight: 700;
+    font-size: 24pt;
+    line-height: 1.15;
+    color: var(--forest);
+    margin: 0 0 6px;
+    letter-spacing: -0.01em;
+  }
+
+  .subtitle {
+    color: var(--olive);
+    font-weight: 600;
+    font-size: 11pt;
+    letter-spacing: 0.04em;
+    text-transform: uppercase;
+    margin-bottom: 28px;
+  }
+
+  h2 {
+    font-family: "Montserrat", sans-serif;
+    font-weight: 600;
+    font-size: 14pt;
+    color: var(--marine);
+    margin: 28px 0 12px;
+    padding-bottom: 6px;
+    border-bottom: 1px solid var(--rule);
+  }
+
+  h3 {
+    font-family: "Montserrat", sans-serif;
+    font-weight: 600;
+    font-size: 12pt;
+    color: var(--forest);
+    margin: 22px 0 8px;
+  }
+
+  p { margin: 0 0 12px; }
+
+  ul, ol {
+    margin: 0 0 14px;
+    padding-left: 22px;
+  }
+
+  li { margin-bottom: 6px; }
+
+  strong { color: var(--ink); font-weight: 600; }
+
+  code {
+    font-family: "Consolas", "Monaco", monospace;
+    background: #F4F5EE;
+    padding: 1px 5px;
+    border-radius: 3px;
+    font-size: 9.5pt;
+    color: var(--forest);
+  }
+
+  a {
+    color: var(--marine);
+    text-decoration: none;
+    border-bottom: 1px solid rgba(27, 75, 108, 0.3);
+    word-break: break-all;
+  }
+
+  .callout {
+    background: #F4F5EE;
+    border-left: 3px solid var(--olive);
+    padding: 12px 16px;
+    margin: 14px 0;
+    border-radius: 0 4px 4px 0;
+  }
+
+  .callout strong { color: var(--forest); }
+
+  .step-num {
+    display: inline-block;
+    width: 26px;
+    height: 26px;
+    background: var(--olive);
+    color: white;
+    border-radius: 50%;
+    text-align: center;
+    line-height: 26px;
+    font-weight: 600;
+    font-size: 11pt;
+    margin-right: 10px;
+    font-family: "Montserrat", sans-serif;
+    vertical-align: middle;
+  }
+
+  .step-title {
+    display: inline-block;
+    vertical-align: middle;
+  }
+
+  hr {
+    border: 0;
+    border-top: 1px solid var(--rule);
+    margin: 28px 0;
+  }
+
+  .troubleshoot {
+    background: #FAFBF5;
+    padding: 18px 22px;
+    border-radius: 6px;
+    margin: 16px 0;
+  }
+
+  .troubleshoot p { margin-bottom: 8px; }
+  .troubleshoot p:last-child { margin-bottom: 0; }
+
+  .q {
+    font-weight: 600;
+    color: var(--forest);
+    font-family: "Montserrat", sans-serif;
+    font-size: 10.5pt;
+    margin-top: 12px;
+  }
+  .q:first-child { margin-top: 0; }
+
+  footer {
+    margin-top: 40px;
+    padding-top: 16px;
+    border-top: 1px solid var(--rule);
+    font-size: 9pt;
+    color: var(--muted);
+    text-align: center;
+    font-style: italic;
+  }
+
+  @page {
+    size: A4;
+    margin: 0;
+  }
+
+  @media print {
+    body { font-size: 10.5pt; }
+    .page { padding: 36px 48px 40px; max-width: none; }
+    a { color: var(--marine); }
+    h2 { page-break-after: avoid; }
+    h3 { page-break-after: avoid; }
+    .callout, .troubleshoot { page-break-inside: avoid; }
+  }
+</style>
+</head>
+<body>
+<div class="page">
+
+<header class="brand">
+  <img src="../assets/branding/logo_principal.png" alt="Quintana Energy" class="logo">
+  <div class="meta">
+    Add-in Árbol de Decisión<br>
+    Guía de instalación
+  </div>
+</header>
+
+<h1>Cómo instalar el Add-in en Excel</h1>
+<div class="subtitle">Análisis de decisión para ingeniería de campo</div>
+
+<h2>Qué necesitás</h2>
+<ul>
+  <li>Excel de escritorio (Windows o Mac), versión 2019 o superior, o Microsoft 365.</li>
+  <li>Conexión a internet la primera vez (para que Excel descargue el add-in).</li>
+  <li>5 minutos.</li>
+</ul>
+
+<div class="callout">
+  No hace falta ser administrador de tu computadora. <strong>No se instala ningún programa nuevo.</strong>
+</div>
+
+<h2>Pasos</h2>
+
+<h3><span class="step-num">1</span><span class="step-title">Descargar el archivo de instalación</span></h3>
+<p>Hacer click en este link y guardarlo en tu computadora:</p>
+<p><a href="https://github.com/jleal-quintana/addin-decision-tree/raw/main/manifest.prod.xml">https://github.com/jleal-quintana/addin-decision-tree/raw/main/manifest.prod.xml</a></p>
+<p>Si tu navegador abre el archivo en lugar de descargarlo, hacer click derecho → <strong>"Guardar enlace como…"</strong> y elegir una carpeta cualquiera (por ejemplo, <strong>Descargas</strong>).</p>
+<p>El archivo se llama <code>manifest.prod.xml</code>. <strong>No abrir, no editar.</strong> Solo guardarlo.</p>
+
+<h3><span class="step-num">2</span><span class="step-title">Abrir Excel</span></h3>
+<p>Cualquier libro nuevo o existente sirve.</p>
+
+<h3><span class="step-num">3</span><span class="step-title">Cargar el complemento</span></h3>
+<p>En la cinta superior de Excel:</p>
+<ol>
+  <li>Ir a la pestaña <strong>Insertar</strong>.</li>
+  <li>Click en <strong>Complementos</strong> (o <strong>Mis complementos</strong>).</li>
+  <li>En la ventana que abre, arriba a la derecha hay un link <strong>"Cargar mi complemento"</strong> (o <strong>"Upload My Add-in"</strong>).</li>
+  <li>Click en <strong>Examinar…</strong> y seleccionar el archivo <code>manifest.prod.xml</code> que descargaste en el paso 1.</li>
+  <li>Click en <strong>Cargar</strong>.</li>
+</ol>
+
+<h3><span class="step-num">4</span><span class="step-title">Confirmar que apareció</span></h3>
+<p>En la pestaña <strong>Inicio</strong> de Excel, al final de la cinta, vas a ver un grupo nuevo <strong>"Quintana Energy"</strong> con un botón <strong>"Abrir árbol"</strong>.</p>
+<p>Click en ese botón abre el panel del add-in en la parte derecha de Excel.</p>
+
+<hr>
+
+<h2>Listo</h2>
+<div class="callout">
+  Una vez instalado, el complemento queda disponible cada vez que abrís Excel. <strong>No hay que reinstalar.</strong><br><br>
+  Cuando publiquemos actualizaciones, las recibís automáticamente la próxima vez que abras Excel — no tenés que descargar nada nuevo.
+</div>
+
+<h2>Si algo sale mal</h2>
+
+<div class="troubleshoot">
+  <p class="q">El complemento no se carga / da error de manifest</p>
+  <p>Asegurate de haber descargado el archivo entero. A veces algunos navegadores guardan solo HTML en lugar del XML. Volvé a descargar haciendo click derecho → "Guardar enlace como…".</p>
+
+  <p class="q">No veo el botón en la cinta</p>
+  <p>Reiniciá Excel completamente (cerrá todas las ventanas, volvé a abrir). El complemento solo aparece después de que Excel se reinicie.</p>
+
+  <p class="q">Excel pide credenciales o pide aprobación de admin</p>
+  <p>Tu organización puede tener restringida la instalación de complementos personalizados. En ese caso, escribinos a Juan Leal (<a href="mailto:jleal@quintanaep.com">jleal@quintanaep.com</a>) para coordinar el deployment vía IT.</p>
+
+  <p class="q">Cualquier otra cosa</p>
+  <p>Mandar mail a <a href="mailto:jleal@quintanaep.com">jleal@quintanaep.com</a> con captura de pantalla del error.</p>
+</div>
+
+<h2>Cómo desinstalar (si hace falta)</h2>
+<p>Excel → <strong>Insertar</strong> → <strong>Complementos</strong> → <strong>Mis complementos</strong> → buscar <strong>"Árbol de Decisión"</strong> → click en los tres puntos (<code>…</code>) → <strong>Quitar</strong>.</p>
+
+<footer>
+  Quintana Energy — Análisis de decisión para ingeniería de campo
+</footer>
+
+</div>
+</body>
+</html>

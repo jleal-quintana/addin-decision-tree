@@ -10,7 +10,7 @@
     "test": "vitest run",
     "test:watch": "vitest",
     "validate": "office-addin-manifest validate manifest.xml",
-    "start:desktop": "office-addin-debugging start manifest.xml desktop --app excel --dev-server \"npm run dev:server\" --dev-server-port 3000 --dev-tools",
+    "start:desktop": "office-addin-debugging start manifest.xml desktop --app excel --dev-server \"npm run dev:server\" --dev-server-port 3000",
     "stop:desktop": "office-addin-debugging stop manifest.xml desktop"
   },
   "dependencies": {
