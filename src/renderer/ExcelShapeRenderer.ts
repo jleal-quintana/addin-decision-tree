@@ -1,5 +1,9 @@
 import { isDebugEnabled, runTrackedOperation } from "../debug/excelDiagnostics";
-import { writeCalculationModel } from "../excel/CalculationSheet";
+import {
+  CalcTablePlacement,
+  calculationTableRowCount,
+  writeCalculationTable,
+} from "../excel/CalculationSheet";
 import { rangeAddr } from "../excel/ExcelAddress";
 import { CALC_SHEET_NAME, TREE_SHEET_NAME } from "../excel/WorkbookConstants";
 import {
@@ -9,7 +13,6 @@ import {
   LayoutResult,
   RenderModel,
   RenderNodeContent,
-  TreeNode,
 } from "../models/types";
 import { QUINTANA, RENDER_TOKENS } from "../rendering/designTokens";
 import { enumeratePaths, PathRow } from "../engine/PathEnumeration";
@@ -570,6 +573,7 @@ export async function renderToExcel(
   layout: LayoutResult,
   renderModel: RenderModel,
   calcSheetMetadata: CalcSheetMetadata,
+  calcPlacement: CalcTablePlacement,
   tree: DecisionTreeData,
   _options: { debug?: boolean } = {}
 ): Promise<void> {
@@ -579,11 +583,20 @@ export async function renderToExcel(
     async () => {
       await Excel.run(async (context) => {
         const treeSheet = await getOrCreateSheet(context, TREE_SHEET_NAME, null);
-        const calcSheet = await getOrCreateSheet(context, CALC_SHEET_NAME, Excel.SheetVisibility.hidden);
         treeSheet.activate();
 
+        // Migración: si existe la vieja hoja oculta DT_Calculos de versiones
+        // anteriores, borrarla. Ahora la tabla de cálculos vive inline en la
+        // hoja del árbol.
+        const legacyCalc = context.workbook.worksheets.getItemOrNullObject(CALC_SHEET_NAME);
+        legacyCalc.load("name");
+        await context.sync();
+        if (!legacyCalc.isNullObject) {
+          legacyCalc.delete();
+          await context.sync();
+        }
+
         await clearWorksheet(treeSheet);
-        await clearWorksheet(calcSheet);
 
         // totalCols es cantidad; lastColIdx es índice 0-based de la última columna.
         const totalCols = Math.max(layout.maxCol + GRID.colGap + 24, 40);
@@ -602,7 +615,6 @@ export async function renderToExcel(
         }
 
         renderTitle(treeSheet, tree, totalCols);
-        await writeCalculationModel(calcSheet, tree, calcSheetMetadata);
         await context.sync();
 
         const rangeByNodeId: Record<string, Excel.Range> = {};
@@ -672,10 +684,15 @@ export async function renderToExcel(
           }
         }
 
-        // Secciones inferiores del documento (DESIGN.md §5.1):
-        // leyenda → recomendación → tabla de caminos → footer.
+        // Secciones inferiores del documento:
+        // memoria de cálculo (inline, referenciada por los shapes) → leyenda →
+        // recomendación → tabla de caminos → footer.
         const treeEndRow = layout.maxRow + GRID.rowGap;
         let cursor = treeEndRow;
+        await writeCalculationTable(treeSheet, tree, calcPlacement);
+        cursor = calcPlacement.startRow + calculationTableRowCount(tree);
+        await context.sync();
+
         cursor = renderLegend(treeSheet, cursor + 1, totalCols);
 
         const rootNode = tree.rootId ? tree.nodes[tree.rootId] : null;
@@ -716,16 +733,17 @@ export async function clearRenderedSheets(): Promise<void> {
   await Excel.run(async (context) => {
     const treeSheet = context.workbook.worksheets.getItemOrNullObject(TREE_SHEET_NAME);
     treeSheet.load("name");
-    const calcSheet = context.workbook.worksheets.getItemOrNullObject(CALC_SHEET_NAME);
-    calcSheet.load("name");
+    const legacyCalc = context.workbook.worksheets.getItemOrNullObject(CALC_SHEET_NAME);
+    legacyCalc.load("name");
     await context.sync();
 
     if (!treeSheet.isNullObject) {
       await clearWorksheet(treeSheet);
     }
-    if (!calcSheet.isNullObject) {
-      await clearWorksheet(calcSheet);
-      calcSheet.visibility = Excel.SheetVisibility.hidden;
+    // Limpieza one-shot de la hoja oculta DT_Calculos de versiones anteriores.
+    // La memoria de cálculo ahora vive inline en la hoja del árbol.
+    if (!legacyCalc.isNullObject) {
+      legacyCalc.delete();
       await context.sync();
     }
   });

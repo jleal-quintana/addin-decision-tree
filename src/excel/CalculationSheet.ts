@@ -1,13 +1,18 @@
 import { CalcSheetMetadata, DecisionTreeData } from "../models/types";
+import { QUINTANA } from "../rendering/designTokens";
 import { cellAddr, colLetter, quoteSheetName, rangeAddr } from "./ExcelAddress";
-import {
-  CALC_COLUMNS,
-  CALC_COLUMN_INDEX,
-  CALC_SHEET_NAME,
-  CALC_TABLE_NAME,
-  CALC_TABLE_START_COL,
-  CALC_TABLE_START_ROW,
-} from "./WorkbookConstants";
+import { CALC_COLUMNS, CALC_COLUMN_INDEX, CALC_TABLE_NAME } from "./WorkbookConstants";
+
+// La tabla ocupa 2 filas de encabezado (título + columnas) antes de los datos.
+const TITLE_ROW_OFFSET = 0;
+const HEADER_ROW_OFFSET = 1;
+const DATA_ROW_OFFSET = 2;
+
+export interface CalcTablePlacement {
+  sheetName: string;
+  startRow: number;
+  startCol: number;
+}
 
 export function flattenTree(tree: DecisionTreeData): string[] {
   const ordered: string[] = [];
@@ -43,126 +48,160 @@ function sameSheetRef(col: number, row: number): string {
   return `$${colLetter(col)}$${row + 1}`;
 }
 
-export function buildCalculationModel(tree: DecisionTreeData): CalcSheetMetadata {
+export function buildCalculationModel(
+  tree: DecisionTreeData,
+  placement: CalcTablePlacement
+): CalcSheetMetadata {
   const orderedNodeIds = flattenTree(tree);
   const metadata: CalcSheetMetadata = {
-    sheetName: CALC_SHEET_NAME,
+    sheetName: placement.sheetName,
     tableName: CALC_TABLE_NAME,
     nodeRefs: {},
   };
 
+  const sheetPrefix = `${quoteSheetName(placement.sheetName)}!`;
+
   for (let index = 0; index < orderedNodeIds.length; index++) {
     const nodeId = orderedNodeIds[index];
-    const sheetRow = CALC_TABLE_START_ROW + 1 + index;
+    const sheetRow = placement.startRow + DATA_ROW_OFFSET + index;
     metadata.nodeRefs[nodeId] = {
       rowIndex: index,
       sheetRow,
-      probabilityAddress: `${quoteSheetName(CALC_SHEET_NAME)}!${cellAddr(CALC_TABLE_START_COL + CALC_COLUMN_INDEX.Probability, sheetRow)}`,
-      costAddress: `${quoteSheetName(CALC_SHEET_NAME)}!${cellAddr(CALC_TABLE_START_COL + CALC_COLUMN_INDEX.Cost, sheetRow)}`,
-      terminalValueAddress: `${quoteSheetName(CALC_SHEET_NAME)}!${cellAddr(CALC_TABLE_START_COL + CALC_COLUMN_INDEX.TerminalValue, sheetRow)}`,
-      childrenEvAddress: `${quoteSheetName(CALC_SHEET_NAME)}!${cellAddr(CALC_TABLE_START_COL + CALC_COLUMN_INDEX.ChildrenEV, sheetRow)}`,
-      netEvAddress: `${quoteSheetName(CALC_SHEET_NAME)}!${cellAddr(CALC_TABLE_START_COL + CALC_COLUMN_INDEX.NetEV, sheetRow)}`,
+      probabilityAddress: `${sheetPrefix}${cellAddr(placement.startCol + CALC_COLUMN_INDEX.Probability, sheetRow)}`,
+      costAddress: `${sheetPrefix}${cellAddr(placement.startCol + CALC_COLUMN_INDEX.Cost, sheetRow)}`,
+      terminalValueAddress: `${sheetPrefix}${cellAddr(placement.startCol + CALC_COLUMN_INDEX.TerminalValue, sheetRow)}`,
+      childrenEvAddress: `${sheetPrefix}${cellAddr(placement.startCol + CALC_COLUMN_INDEX.ChildrenEV, sheetRow)}`,
+      netEvAddress: `${sheetPrefix}${cellAddr(placement.startCol + CALC_COLUMN_INDEX.NetEV, sheetRow)}`,
     };
   }
 
   return metadata;
 }
 
-export function buildCalculationBaseValues(tree: DecisionTreeData): (string | number | boolean)[][] {
+function buildDataRows(tree: DecisionTreeData): (string | number | boolean)[][] {
   const orderedNodeIds = flattenTree(tree);
-
-  return [
-    [...CALC_COLUMNS],
-    ...orderedNodeIds.map((nodeId) => {
-      const node = tree.nodes[nodeId];
-      return [
-        node.id,
-        node.parentId ?? "",
-        getDepth(tree, node.id),
-        node.type,
-        node.label,
-        node.probability ?? "",
-        node.cost ?? "",
-        node.type === "end" ? node.payoff ?? 0 : "",
-        "",
-        "",
-        "",
-        node.isOptimal,
-      ];
-    }),
-  ];
+  return orderedNodeIds.map((nodeId) => {
+    const node = tree.nodes[nodeId];
+    return [
+      node.id,
+      node.parentId ?? "",
+      getDepth(tree, node.id),
+      node.type,
+      node.label,
+      node.probability ?? "",
+      node.cost ?? "",
+      node.type === "end" ? node.payoff ?? 0 : "",
+      "",
+      "",
+      "",
+      node.isOptimal,
+    ];
+  });
 }
 
-export async function writeCalculationModel(
+/**
+ * Escribe la tabla "MEMORIA DE CÁLCULO" en la hoja dada, a partir de la fila/
+ * columna indicadas. A diferencia de la versión anterior (que usaba una hoja
+ * oculta dedicada), acá NO se toca la visibilidad ni se limpia used range:
+ * la tabla convive con el árbol en la misma hoja imprimible.
+ */
+export async function writeCalculationTable(
   sheet: Excel.Worksheet,
   tree: DecisionTreeData,
-  _metadata: CalcSheetMetadata
+  placement: CalcTablePlacement
 ): Promise<void> {
   const orderedNodeIds = flattenTree(tree);
-  const rowCount = orderedNodeIds.length + 1;
+  const dataRowCount = orderedNodeIds.length;
   const colCount = CALC_COLUMNS.length;
+  if (dataRowCount === 0) return;
+
   const rowByNodeId: Record<string, number> = {};
-
-  for (let index = 0; index < orderedNodeIds.length; index++) {
-    rowByNodeId[orderedNodeIds[index]] = CALC_TABLE_START_ROW + 1 + index;
+  for (let index = 0; index < dataRowCount; index++) {
+    rowByNodeId[orderedNodeIds[index]] = placement.startRow + DATA_ROW_OFFSET + index;
   }
 
-  const usedRange = sheet.getUsedRangeOrNullObject();
-  usedRange.load("address");
-  await sheet.context.sync();
+  const titleRow = placement.startRow + TITLE_ROW_OFFSET;
+  const headerRow = placement.startRow + HEADER_ROW_OFFSET;
+  const firstDataRow = placement.startRow + DATA_ROW_OFFSET;
 
-  if (!usedRange.isNullObject) {
-    usedRange.clear(Excel.ClearApplyTo.all);
-  }
+  // Título "MEMORIA DE CÁLCULO" (merge across todas las columnas de la tabla).
+  const titleRange = sheet.getRange(rangeAddr(placement.startCol, titleRow, colCount, 1));
+  titleRange.unmerge();
+  if (colCount > 1) titleRange.merge();
+  const titleCell = sheet.getCell(titleRow, placement.startCol);
+  titleCell.values = [["MEMORIA DE CÁLCULO"]];
+  titleRange.format.font.name = "Calibri";
+  titleRange.format.font.size = 10;
+  titleRange.format.font.bold = true;
+  titleRange.format.font.color = QUINTANA.marine;
+  titleRange.format.horizontalAlignment = "Left";
+  sheet.getRange(rangeAddr(placement.startCol, titleRow, colCount, 1)).format.rowHeight = 16;
 
-  const tableAddress = rangeAddr(
-    CALC_TABLE_START_COL,
-    CALC_TABLE_START_ROW,
-    colCount,
-    rowCount
+  // Header row (nombres de columna)
+  const headerRange = sheet.getRange(rangeAddr(placement.startCol, headerRow, colCount, 1));
+  headerRange.values = [[...CALC_COLUMNS]];
+  headerRange.format.fill.color = QUINTANA.olive;
+  headerRange.format.font.name = "Calibri";
+  headerRange.format.font.size = 9;
+  headerRange.format.font.bold = true;
+  headerRange.format.font.color = QUINTANA.paper;
+  headerRange.format.horizontalAlignment = "Center";
+  sheet.getRange(rangeAddr(placement.startCol, headerRow, colCount, 1)).format.rowHeight = 16;
+
+  // Data rows
+  const dataRange = sheet.getRange(
+    rangeAddr(placement.startCol, firstDataRow, colCount, dataRowCount)
   );
+  dataRange.values = buildDataRows(tree);
+  dataRange.format.font.name = "Calibri";
+  dataRange.format.font.size = 9;
+  dataRange.format.font.color = QUINTANA.ink;
 
-  sheet.getRange(tableAddress).values = buildCalculationBaseValues(tree);
-  const tableRange = sheet.getRange(tableAddress);
-  tableRange.format.font.name = "Inter";
-  tableRange.format.font.size = 9;
-  sheet.visibility = Excel.SheetVisibility.hidden;
+  // Filas alternas (zebra) para legibilidad.
+  for (let i = 0; i < dataRowCount; i++) {
+    const rowRange = sheet.getRange(
+      rangeAddr(placement.startCol, firstDataRow + i, colCount, 1)
+    );
+    rowRange.format.fill.color = i % 2 === 0 ? QUINTANA.paper : QUINTANA.slateTenue;
+  }
 
+  // Fórmulas: ChildrenEV y NetEV. Semántica idéntica al engine TS
+  // (ExpectedValueCalculator): `netEv = childrenEv - cost` uniforme
+  // en modo Valor y Costo.
   for (const nodeId of orderedNodeIds) {
     const node = tree.nodes[nodeId];
     const row = rowByNodeId[nodeId];
     const childrenEvCell = sheet.getRange(
-      cellAddr(CALC_TABLE_START_COL + CALC_COLUMN_INDEX.ChildrenEV, row)
+      cellAddr(placement.startCol + CALC_COLUMN_INDEX.ChildrenEV, row)
     );
     const netEvCell = sheet.getRange(
-      cellAddr(CALC_TABLE_START_COL + CALC_COLUMN_INDEX.NetEV, row)
+      cellAddr(placement.startCol + CALC_COLUMN_INDEX.NetEV, row)
     );
 
     if (node.type === "end") {
       childrenEvCell.values = [[""]];
       netEvCell.formulas = [[
-        `=N(${sameSheetRef(CALC_TABLE_START_COL + CALC_COLUMN_INDEX.TerminalValue, row)})-N(${sameSheetRef(CALC_TABLE_START_COL + CALC_COLUMN_INDEX.Cost, row)})`,
+        `=N(${sameSheetRef(placement.startCol + CALC_COLUMN_INDEX.TerminalValue, row)})-N(${sameSheetRef(placement.startCol + CALC_COLUMN_INDEX.Cost, row)})`,
       ]];
       continue;
     }
-
-    const childNetRefs = node.childIds
-      .filter((childId) => rowByNodeId[childId] !== undefined)
-      .map((childId) =>
-        sameSheetRef(CALC_TABLE_START_COL + CALC_COLUMN_INDEX.NetEV, rowByNodeId[childId])
-      );
 
     if (node.type === "chance") {
       const weightedTerms = node.childIds
         .filter((childId) => rowByNodeId[childId] !== undefined)
         .map((childId) => {
           const childRow = rowByNodeId[childId];
-          return `${sameSheetRef(CALC_TABLE_START_COL + CALC_COLUMN_INDEX.Probability, childRow)}*${sameSheetRef(CALC_TABLE_START_COL + CALC_COLUMN_INDEX.NetEV, childRow)}`;
+          return `${sameSheetRef(placement.startCol + CALC_COLUMN_INDEX.Probability, childRow)}*${sameSheetRef(placement.startCol + CALC_COLUMN_INDEX.NetEV, childRow)}`;
         });
       childrenEvCell.formulas = [[
         weightedTerms.length > 0 ? `=SUM(${weightedTerms.join(",")})` : "=0",
       ]];
     } else {
+      const childNetRefs = node.childIds
+        .filter((childId) => rowByNodeId[childId] !== undefined)
+        .map((childId) =>
+          sameSheetRef(placement.startCol + CALC_COLUMN_INDEX.NetEV, rowByNodeId[childId])
+        );
       const fn = tree.metadata.mode === "minimize" ? "MIN" : "MAX";
       childrenEvCell.formulas = [[
         childNetRefs.length > 0 ? `=${fn}(${childNetRefs.join(",")})` : "=0",
@@ -170,47 +209,70 @@ export async function writeCalculationModel(
     }
 
     netEvCell.formulas = [[
-      `=${sameSheetRef(CALC_TABLE_START_COL + CALC_COLUMN_INDEX.ChildrenEV, row)}-N(${sameSheetRef(CALC_TABLE_START_COL + CALC_COLUMN_INDEX.Cost, row)})`,
+      `=${sameSheetRef(placement.startCol + CALC_COLUMN_INDEX.ChildrenEV, row)}-N(${sameSheetRef(placement.startCol + CALC_COLUMN_INDEX.Cost, row)})`,
     ]];
   }
 
-  for (let index = 0; index < orderedNodeIds.length; index++) {
+  // Columnas de valores derivados (OptimalChildId, IsOptimalPath) — valores
+  // literales. No son fórmulas porque el engine TS ya decidió la optimalidad
+  // antes del render; recomputarla en Excel sería complejidad innecesaria.
+  for (let index = 0; index < dataRowCount; index++) {
     const nodeId = orderedNodeIds[index];
-    const row = CALC_TABLE_START_ROW + 1 + index;
+    const row = firstDataRow + index;
     const node = tree.nodes[nodeId];
 
     sheet.getRange(
-      cellAddr(CALC_TABLE_START_COL + CALC_COLUMN_INDEX.OptimalChildId, row)
+      cellAddr(placement.startCol + CALC_COLUMN_INDEX.OptimalChildId, row)
     ).values = [[node.childIds.find((childId) => tree.nodes[childId]?.isOptimal) ?? ""]];
     sheet.getRange(
-      cellAddr(CALC_TABLE_START_COL + CALC_COLUMN_INDEX.IsOptimalPath, row)
+      cellAddr(placement.startCol + CALC_COLUMN_INDEX.IsOptimalPath, row)
     ).values = [[node.isOptimal]];
   }
 
-  if (orderedNodeIds.length > 0) {
+  // Number formats por columna
+  sheet.getRange(
+    rangeAddr(
+      placement.startCol + CALC_COLUMN_INDEX.Probability,
+      firstDataRow,
+      1,
+      dataRowCount
+    )
+  ).numberFormat = orderedNodeIds.map(() => ["0.0%"]);
+
+  for (const moneyColumn of [
+    CALC_COLUMN_INDEX.Cost,
+    CALC_COLUMN_INDEX.TerminalValue,
+    CALC_COLUMN_INDEX.ChildrenEV,
+    CALC_COLUMN_INDEX.NetEV,
+  ]) {
     sheet.getRange(
       rangeAddr(
-        CALC_TABLE_START_COL + CALC_COLUMN_INDEX.Probability,
-        CALC_TABLE_START_ROW + 1,
+        placement.startCol + moneyColumn,
+        firstDataRow,
         1,
-        orderedNodeIds.length
+        dataRowCount
       )
-    ).numberFormat = orderedNodeIds.map(() => ["0.0%"]);
+    ).numberFormat = orderedNodeIds.map(() => ["$#,##0"]);
+  }
 
-    for (const moneyColumn of [
-      CALC_COLUMN_INDEX.Cost,
-      CALC_COLUMN_INDEX.TerminalValue,
-      CALC_COLUMN_INDEX.ChildrenEV,
-      CALC_COLUMN_INDEX.NetEV,
-    ]) {
-      sheet.getRange(
-        rangeAddr(
-          CALC_TABLE_START_COL + moneyColumn,
-          CALC_TABLE_START_ROW + 1,
-          1,
-          orderedNodeIds.length
-        )
-      ).numberFormat = orderedNodeIds.map(() => ["$#,##0"]);
+  // Resaltar filas del camino óptimo con lime tenue (pisa el zebra).
+  for (let i = 0; i < dataRowCount; i++) {
+    const nodeId = orderedNodeIds[i];
+    if (tree.nodes[nodeId].isOptimal) {
+      const rowRange = sheet.getRange(
+        rangeAddr(placement.startCol, firstDataRow + i, colCount, 1)
+      );
+      rowRange.format.fill.color = QUINTANA.limeTenue;
+      rowRange.format.font.bold = true;
     }
   }
+}
+
+/**
+ * Devuelve cuántas filas ocupa la tabla (título + header + datos) para que el
+ * renderer sepa dónde posicionar lo que viene después (footer, etc).
+ */
+export function calculationTableRowCount(tree: DecisionTreeData): number {
+  const dataRowCount = flattenTree(tree).length;
+  return DATA_ROW_OFFSET + dataRowCount;
 }

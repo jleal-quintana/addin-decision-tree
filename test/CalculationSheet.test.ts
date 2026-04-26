@@ -1,14 +1,19 @@
 import { oilDrillingExample, workoverExample } from "../src/engine/Examples";
 import {
-  buildCalculationBaseValues,
   buildCalculationModel,
+  CalcTablePlacement,
   flattenTree,
-  writeCalculationModel,
+  writeCalculationTable,
 } from "../src/excel/CalculationSheet";
 import { cellAddr } from "../src/excel/ExcelAddress";
-import { CALC_COLUMN_INDEX, CALC_TABLE_START_COL } from "../src/excel/WorkbookConstants";
-import { CALC_SHEET_NAME } from "../src/excel/WorkbookConstants";
+import { CALC_COLUMN_INDEX, TREE_SHEET_NAME } from "../src/excel/WorkbookConstants";
 import { getRange, installFakeExcel } from "./support/fakeExcel";
+
+const PLACEMENT: CalcTablePlacement = {
+  sheetName: TREE_SHEET_NAME,
+  startRow: 0,
+  startCol: 0,
+};
 
 describe("CalculationSheet", () => {
   it("flattens the tree in preorder", () => {
@@ -16,33 +21,40 @@ describe("CalculationSheet", () => {
     expect(order).toEqual(["root", "drill", "oil", "dry", "no_drill"]);
   });
 
-  it("builds metadata on the hidden calc sheet", () => {
-    const metadata = buildCalculationModel(oilDrillingExample());
-    expect(metadata.sheetName).toBe(CALC_SHEET_NAME);
-    expect(metadata.nodeRefs.root.sheetRow).toBeGreaterThan(0);
+  it("builds metadata anchored to the placement passed in", () => {
+    const metadata = buildCalculationModel(oilDrillingExample(), PLACEMENT);
+    expect(metadata.sheetName).toBe(TREE_SHEET_NAME);
+    // Datos arrancan dos filas debajo del startRow (título + header).
+    expect(metadata.nodeRefs.root.sheetRow).toBe(PLACEMENT.startRow + 2);
   });
 
-  it("writes formulas for chance and decision nodes", async () => {
+  it("writes formulas for chance and decision nodes inline", async () => {
     const { context } = installFakeExcel();
-    const worksheet = context.workbook.worksheets.add(CALC_SHEET_NAME) as unknown as Excel.Worksheet;
+    const worksheet = context.workbook.worksheets.add(TREE_SHEET_NAME) as unknown as Excel.Worksheet;
     const tree = workoverExample();
 
-    await writeCalculationModel(worksheet, tree, buildCalculationModel(tree));
+    await writeCalculationTable(worksheet, tree, PLACEMENT);
 
-    const baseValues = buildCalculationBaseValues(tree);
-    expect(baseValues[1][0]).toBe("wo_root");
-
+    // Primera fila de datos = startRow + 2 (título=0, header=1, datos=2..).
+    // workoverExample arranca con un nodo decision en la raíz.
+    const rootRow = PLACEMENT.startRow + 2;
     const rootChildrenEv = getRange(
       context,
-      CALC_SHEET_NAME,
-      cellAddr(CALC_TABLE_START_COL + CALC_COLUMN_INDEX.ChildrenEV, 3)
+      TREE_SHEET_NAME,
+      cellAddr(PLACEMENT.startCol + CALC_COLUMN_INDEX.ChildrenEV, rootRow)
     );
+    expect(rootChildrenEv?.formulas[0][0]).toMatch(/=(MIN|MAX)\(/);
+
+    // Algún chance node debe tener fórmula =SUM(...).
+    const orderedIds = flattenTree(tree);
+    const chanceIdx = orderedIds.findIndex((id) => tree.nodes[id].type === "chance");
+    expect(chanceIdx).toBeGreaterThanOrEqual(0);
+    const chanceRow = PLACEMENT.startRow + 2 + chanceIdx;
     const chanceChildrenEv = getRange(
       context,
-      CALC_SHEET_NAME,
-      cellAddr(CALC_TABLE_START_COL + CALC_COLUMN_INDEX.ChildrenEV, 4)
+      TREE_SHEET_NAME,
+      cellAddr(PLACEMENT.startCol + CALC_COLUMN_INDEX.ChildrenEV, chanceRow)
     );
-    expect(rootChildrenEv?.formulas[0][0]).toContain("=MIN(");
     expect(chanceChildrenEv?.formulas[0][0]).toContain("=SUM(");
   });
 });

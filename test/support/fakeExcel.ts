@@ -210,6 +210,16 @@ class FakeRangeFormat {
   fill = {
     color: "",
   };
+  borders = {
+    getItem: (_side: string) => ({
+      style: "",
+      color: "",
+      weight: "",
+    }),
+  };
+  protection = {
+    locked: false,
+  };
   private _columnWidth = 15;
   private _rowHeight = 24;
   constructor(private readonly worksheet: FakeWorksheet, private readonly address: string) {}

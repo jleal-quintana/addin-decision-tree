@@ -5,8 +5,10 @@ import { DecisionTreeData } from "../models/types";
 import { validate } from "../models/DecisionTree";
 import { buildRenderModel } from "../rendering/renderModel";
 import { renderToExcel, clearRenderedSheets } from "../renderer/ExcelShapeRenderer";
+import { GRID } from "../renderer/StyleConfig";
 import { computeLayout } from "../renderer/TreeLayoutEngine";
-import { buildCalculationModel } from "./CalculationSheet";
+import { buildCalculationModel, CalcTablePlacement } from "./CalculationSheet";
+import { TREE_SHEET_NAME } from "./WorkbookConstants";
 
 function prepareTreeForRender(tree: DecisionTreeData): DecisionTreeData {
   if (!tree.rootId) return tree;
@@ -39,13 +41,22 @@ export async function renderTreeToExcel(
   }
 
   const treeToRender = prepareTreeForRender(tree);
-  const calcSheet = buildCalculationModel(treeToRender);
-  const layout = computeLayout(treeToRender, calcSheet);
-  const renderModel = buildRenderModel(treeToRender, layout);
+  const layout = computeLayout(treeToRender);
 
   if (layout.nodes.length === 0) {
     throw new Error("El arbol esta vacio");
   }
+
+  // Tabla de cálculos inline: arranca dos filas debajo del último row del
+  // árbol, columna 0. Construimos el metadata DESPUÉS del layout para que
+  // las direcciones de las celdas coincidan con su posición real.
+  const calcPlacement: CalcTablePlacement = {
+    sheetName: TREE_SHEET_NAME,
+    startRow: layout.maxRow + GRID.rowGap + 1,
+    startCol: 0,
+  };
+  const calcSheet = buildCalculationModel(treeToRender, calcPlacement);
+  const renderModel = buildRenderModel(treeToRender, layout);
 
   await runTrackedOperation(
     "renderTreeToExcel",
@@ -54,7 +65,8 @@ export async function renderTreeToExcel(
       edges: layout.edges.length,
       debug: options.debug ?? false,
     },
-    async () => renderToExcel(layout, renderModel, calcSheet, treeToRender, options)
+    async () =>
+      renderToExcel(layout, renderModel, calcSheet, calcPlacement, treeToRender, options)
   );
 }
 
