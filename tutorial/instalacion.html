@@ -259,13 +259,17 @@
 <h2>Instalación</h2>
 
 <h3><span class="step-num">1</span><span class="step-title">Descargar el instalador</span></h3>
-<p>Bajar este archivo:</p>
-<p><a href="https://github.com/jleal-quintana/addin-decision-tree/raw/main/tutorial/instalar.bat" class="download-link">⬇ instalar.bat</a></p>
+<p>Bajar este archivo (es un ZIP con los scripts adentro):</p>
+<p><a href="https://github.com/jleal-quintana/addin-decision-tree/raw/main/tutorial/arbol-decision-installer.zip" class="download-link">⬇ arbol-decision-installer.zip</a></p>
 <p>Si tu navegador abre el archivo en lugar de descargarlo, hacer click derecho → <strong>"Guardar enlace como…"</strong> y elegir cualquier carpeta (por ejemplo, <strong>Descargas</strong>).</p>
 
-<h3><span class="step-num">2</span><span class="step-title">Ejecutar el instalador</span></h3>
+<h3><span class="step-num">2</span><span class="step-title">Descomprimir y ejecutar el instalador</span></h3>
 <p><strong>Cerrá Excel</strong> primero si lo tenés abierto.</p>
-<p>Doble click en <code>instalar.bat</code>.</p>
+<ol>
+  <li>Click derecho en <code>arbol-decision-installer.zip</code> → <strong>"Extraer todo…"</strong> → elegir cualquier carpeta → <strong>Extraer</strong>.</li>
+  <li>Dentro de la carpeta extraída vas a ver dos archivos: <code>instalar.bat</code> y <code>desinstalar.bat</code>.</li>
+  <li>Doble click en <code>instalar.bat</code>.</li>
+</ol>
 
 <div class="callout warn">
   Windows va a mostrar una advertencia azul tipo <strong>"Windows protegió tu equipo / SmartScreen"</strong>. Es porque el archivo no está firmado por Microsoft. <strong>No es un virus.</strong> Para continuar:
@@ -337,7 +341,7 @@ LISTO - Instalacion completada</code></pre>
 <p><strong>Solo si te aviso explícitamente</strong> que cambió la configuración (por ejemplo, agregamos un botón nuevo a la cinta), vas a tener que volver a ejecutar <code>instalar.bat</code> para refrescar el manifest. En general no hace falta.</p>
 
 <h2>Cómo desinstalar</h2>
-<p>Bajar y ejecutar <a href="https://github.com/jleal-quintana/addin-decision-tree/raw/main/tutorial/desinstalar.bat"><code>desinstalar.bat</code></a>.</p>
+<p>Dentro de la misma carpeta donde extrajiste el ZIP del instalador, doble click en <code>desinstalar.bat</code>.</p>
 <p>Eso quita la entrada del registro y borra el archivo de configuración. Cerrar y reabrir Excel para que tome efecto.</p>
 
 <footer>

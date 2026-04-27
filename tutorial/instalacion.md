@@ -25,17 +25,19 @@ El complemento corre en una página web hosteada en GitHub Pages. Lo que vamos a
 
 ### 1. Descargar el instalador
 
-Bajar este archivo:
+Bajar este archivo (es un ZIP con los scripts adentro):
 
-**[`instalar.bat`](https://github.com/jleal-quintana/addin-decision-tree/raw/main/tutorial/instalar.bat)**
+**[`arbol-decision-installer.zip`](https://github.com/jleal-quintana/addin-decision-tree/raw/main/tutorial/arbol-decision-installer.zip)**
 
 Si tu navegador abre el archivo en lugar de descargarlo, hacer click derecho → **"Guardar enlace como..."** y elegir cualquier carpeta (por ejemplo, **Descargas**).
 
-### 2. Ejecutar el instalador
+### 2. Descomprimir y ejecutar el instalador
 
 **Cerrá Excel** primero si lo tenés abierto.
 
-Doble click en `instalar.bat`.
+1. Click derecho en `arbol-decision-installer.zip` → **"Extraer todo..."** → elegir cualquier carpeta → **Extraer**.
+2. Dentro de la carpeta extraída vas a ver dos archivos: `instalar.bat` y `desinstalar.bat`.
+3. Doble click en `instalar.bat`.
 
 Windows va a mostrar una advertencia azul tipo "Windows protegió tu equipo / SmartScreen". Es porque el archivo no está firmado por Microsoft. **No es un virus.** Para continuar:
 
@@ -118,7 +120,7 @@ El código del complemento (lo que ves en el panel) se actualiza automáticament
 
 ## Cómo desinstalar
 
-Bajar y ejecutar **[`desinstalar.bat`](https://github.com/jleal-quintana/addin-decision-tree/raw/main/tutorial/desinstalar.bat)**.
+Dentro de la misma carpeta donde extrajiste el ZIP del instalador, doble click en `desinstalar.bat`.
 
 Eso quita la entrada del registro y borra el archivo de configuración. Cerrar y reabrir Excel para que tome efecto.
 
