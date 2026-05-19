@@ -26,10 +26,11 @@ function notify(): void {
 function toDetailString(details?: Record<string, unknown>): string {
   if (!details) return "";
 
-  return Object.entries(details)
-    .filter(([, value]) => value !== undefined)
-    .map(([key, value]) => `${key}=${String(value)}`)
-    .join(" | ");
+  const parts: string[] = [];
+  for (const [key, value] of Object.entries(details)) {
+    if (value !== undefined) parts.push(`${key}=${String(value)}`);
+  }
+  return parts.join(" | ");
 }
 
 function pushEntry(
@@ -119,7 +120,7 @@ export async function runTrackedOperation<T>(
   }
 }
 
-export async function flushDiagnosticsToWorkbook(): Promise<void> {
+async function flushDiagnosticsToWorkbook(): Promise<void> {
   if (!isDebugEnabled() || flushing) return;
   if (typeof Excel === "undefined" || typeof Excel.run !== "function") return;
 
@@ -145,9 +146,10 @@ export async function flushDiagnosticsToWorkbook(): Promise<void> {
           return false;
         }
       })();
-      sheet.visibility = visibleOverride
-        ? Excel.SheetVisibility.visible
-        : Excel.SheetVisibility.hidden;
+      // En etapa de desarrollo preferimos dejar la hoja visible: cuando Office
+      // tira "The argument is invalid..." necesitamos ver el último sync que
+      // llegó a ejecutarse sin pedirle al usuario que desoculte hojas.
+      sheet.visibility = Excel.SheetVisibility.visible;
       const usedRange = sheet.getUsedRangeOrNullObject();
       usedRange.load("address");
       await context.sync();

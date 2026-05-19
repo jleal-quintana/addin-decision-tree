@@ -281,7 +281,7 @@ function writeNodeCells(
   // como celdas auditables cerca de la junta. Esto escala mejor para árboles
   // grandes y replica el lenguaje visual del Excel de referencia.
   const labelCol = startCol + 1;
-  const labelWidth = Math.max(2, width);
+  const labelWidth = Math.max(1, width);
   const titleRange = setRowBandValue(sheet, labelCol, layoutNode.row, labelWidth, renderNode.title);
   titleRange.format.fill.color = renderNode.isOptimal ? QUINTANA.limeTenue : QUINTANA.paper;
   titleRange.format.font.name = "Calibri";
@@ -346,7 +346,7 @@ function addEdgeLine(
     beginTop,
     endLeft,
     endTop,
-    Excel.ConnectorType.elbow
+    Excel.ConnectorType.straight
   );
   line.name = `${SHAPE_PREFIX}EDGE_${edge.fromId}_${edge.toId}`;
   return line;
@@ -404,7 +404,7 @@ function writeEdgeLabelCells(
   }
 
   const labelText = [edge.label, details].filter(Boolean).join(" · ");
-  const labelRange = setRowBandValue(sheet, edge.connectorCol + 1, row, 3, labelText);
+  const labelRange = setRowBandValue(sheet, edge.connectorCol + 1, row, 2, labelText);
   labelRange.format.font.name = "Calibri";
   labelRange.format.font.size = 9;
   labelRange.format.font.color = edge.isOptimal ? EDGE_COLORS.optimal : EDGE_COLORS.normal;

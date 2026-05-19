@@ -18,12 +18,12 @@ export const SHAPE_PREFIX = "DT_";
 export const GRID: GridProfile = {
   startRow: 7,
   startCol: 1,
-  // Branch-style renderer: each node is a compact junction marker; labels and
-  // values live in nearby cells, like the reference VM Plan workbook.
+  // Compact branch-style renderer. With 5 levels this keeps the tree around
+  // columns A:O instead of expanding to A:AN like the previous wide grid.
   nodeRows: 3,
-  nodeCols: 3,
+  nodeCols: 2,
   rowGap: 2,
-  colGap: 5,
+  colGap: 1,
 };
 
 export function resolveGridProfile(overrides?: Partial<GridProfile>): GridProfile {
