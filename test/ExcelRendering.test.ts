@@ -26,6 +26,24 @@ describe("Excel rendering", () => {
     expect(sheet.shapes.items.some((shape) => shape.name.startsWith("DT_NODE_"))).toBe(true);
   });
 
+  it("uses the branch-style visual language from the VM Plan reference", async () => {
+    const { context } = installFakeExcel();
+    const tree = oilDrillingExample();
+    const layout = computeLayout(tree);
+    const placement = makePlacement(layout.maxRow);
+    const calc = buildCalculationModel(tree, placement);
+    const renderModel = buildRenderModel(tree, layout);
+
+    await renderToExcel(layout, renderModel, calc, placement, tree);
+
+    const sheet = getWorksheet(context, TREE_SHEET_NAME)!;
+    const nodeShape = sheet.shapes.items.find((shape) => shape.name.startsWith("DT_NODE_")) as any;
+    expect(nodeShape).toBeTruthy();
+    expect(nodeShape.fill.color).toBe("#FFFFFF");
+    expect(nodeShape.width).toBeLessThanOrEqual(24);
+    expect(sheet.shapes.items.some((shape) => shape.name.startsWith("DT_TERMINAL_"))).toBe(true);
+  });
+
   it("renders via ShapeManager and clears previous artifacts", async () => {
     const { context } = installFakeExcel();
     const tree = oilDrillingExample();

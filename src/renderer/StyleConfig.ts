@@ -16,11 +16,13 @@ export const SHAPE_PREFIX = "DT_";
  * árbol arranca en la fila 6 (startRow=6). Ver DESIGN.md §5.1.
  */
 export const GRID: GridProfile = {
-  startRow: 6,
+  startRow: 7,
   startCol: 1,
-  nodeRows: 4,
-  nodeCols: 4,
-  rowGap: 3,
+  // Branch-style renderer: each node is a compact junction marker; labels and
+  // values live in nearby cells, like the reference VM Plan workbook.
+  nodeRows: 3,
+  nodeCols: 3,
+  rowGap: 2,
   colGap: 5,
 };
 
@@ -28,7 +30,6 @@ export function resolveGridProfile(overrides?: Partial<GridProfile>): GridProfil
   return { ...GRID, ...overrides };
 }
 
-export const COL_WIDTH = 9;
 export const ROW_HEIGHT = 20;
 
 export const SHAPE_ROW_HEIGHT = 36;
@@ -41,5 +42,3 @@ export const EDGE_COLORS = {
   normalWeight: 2,
   optimalWeight: 3,
 };
-
-export const OPTIMAL_BORDER_COLOR = QUINTANA.olive;

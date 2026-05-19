@@ -240,9 +240,10 @@ function createNodeMarker(
   const theme = NODE_THEMES[node.type];
   const marker = sheet.shapes.addGeometricShape(theme.geometricType);
 
-  // Shape cuadrado/circular/triangular centrado en la fila superior del bloque.
+  // Branch-style: el nodo es una junta visual chica, no una caja con texto.
+  // La información se escribe en celdas alrededor de la rama, como en VM Plan.
   const shapeRowHeight = SHAPE_ROW_HEIGHT;
-  const size = Math.min(shapeRowHeight - 6, rect.width * 0.5);
+  const size = Math.min(24, shapeRowHeight - 10, rect.width * 0.45);
   const left = rect.left + (rect.width - size) / 2;
   const top = rect.top + (shapeRowHeight - size) / 2;
 
@@ -252,10 +253,10 @@ function createNodeMarker(
   marker.width = size;
   marker.height = size;
   setShapePlacement(marker);
-  marker.fill.setSolidColor(theme.fill);
+  marker.fill.setSolidColor(QUINTANA.paper);
   marker.lineFormat.visible = true;
   marker.lineFormat.color = node.isOptimal ? RENDER_TOKENS.accent : theme.border;
-  marker.lineFormat.weight = node.isOptimal ? 3 : 1;
+  marker.lineFormat.weight = node.isOptimal ? 3 : 2.5;
   return marker;
 }
 
@@ -274,22 +275,23 @@ function writeNodeCells(
   shapeRowRange.unmerge();
   shapeRowRange.values = Array.from({ length: 1 }, () => Array.from({ length: width }, () => ""));
 
-  // Fila 1: título (label). Fondo olive-tenue para óptimo, sino fill del tipo.
-  const titleRange = setRowBandValue(sheet, startCol, layoutNode.row + 1, width, renderNode.title);
-  const titleFill = renderNode.isOptimal ? QUINTANA.limeTenue : theme.fill;
-  const titleText = renderNode.isOptimal ? QUINTANA.forest : theme.text;
-  titleRange.format.fill.color = titleFill;
+  // Branch-style labels: el nodo queda limpio; título, valor y detalle viven
+  // como celdas auditables cerca de la junta. Esto escala mejor para árboles
+  // grandes y replica el lenguaje visual del Excel de referencia.
+  const labelCol = startCol + 1;
+  const labelWidth = Math.max(2, width);
+  const titleRange = setRowBandValue(sheet, labelCol, layoutNode.row, labelWidth, renderNode.title);
+  titleRange.format.fill.color = renderNode.isOptimal ? QUINTANA.limeTenue : QUINTANA.paper;
   titleRange.format.font.name = "Calibri";
-  titleRange.format.font.size = 11;
+  titleRange.format.font.size = 10;
   titleRange.format.font.bold = true;
-  titleRange.format.font.color = titleText;
-  titleRange.format.horizontalAlignment = "Center";
+  titleRange.format.font.color = renderNode.isOptimal ? QUINTANA.forest : QUINTANA.ink;
+  titleRange.format.horizontalAlignment = "Left";
 
-  // Fila 2: valor. Fórmula al calc-sheet si existe; sino valor literal.
-  const valueRange = sheet.getRange(rangeAddr(startCol, layoutNode.row + 2, width, 1));
+  const valueRange = sheet.getRange(rangeAddr(labelCol, layoutNode.row + 1, labelWidth, 1));
   valueRange.unmerge();
-  if (width > 1) valueRange.merge();
-  const valueCell = sheet.getCell(layoutNode.row + 2, startCol);
+  if (labelWidth > 1) valueRange.merge();
+  const valueCell = sheet.getCell(layoutNode.row + 1, labelCol);
   const nodeRef = calcSheetMetadata.nodeRefs[layoutNode.id];
   const node = tree.nodes[layoutNode.id];
   if (nodeRef && node) {
@@ -302,26 +304,22 @@ function writeNodeCells(
   } else {
     valueCell.values = [[""]];
   }
-  valueRange.format.fill.color = QUINTANA.paper;
+  valueRange.format.fill.color = QUINTANA.slateTenue;
   valueRange.format.font.name = "Calibri";
-  valueRange.format.font.size = 11;
+  valueRange.format.font.size = 9;
   valueRange.format.font.bold = true;
-  valueRange.format.font.color = QUINTANA.ink;
-  valueRange.format.horizontalAlignment = "Center";
+  valueRange.format.font.color = RENDER_TOKENS.edge;
+  valueRange.format.horizontalAlignment = "Right";
 
-  // Fila 3: detalle (prob / costo / tiempo / notas).
-  const detailText = [
-    renderNode.secondaryLines.join(" · "),
-    renderNode.noteLines.join(" · "),
-  ]
+  const detailText = [renderNode.secondaryLines.join(" · "), renderNode.noteLines.join(" · ")]
     .filter((part) => part.length > 0)
     .join(" — ");
-  const detailRange = setRowBandValue(sheet, startCol, layoutNode.row + 3, width, detailText);
-  detailRange.format.fill.color = QUINTANA.slateTenue;
+  const detailRange = setRowBandValue(sheet, labelCol, layoutNode.row + 2, labelWidth, detailText);
+  detailRange.format.fill.color = QUINTANA.paper;
   detailRange.format.font.name = "Calibri";
-  detailRange.format.font.size = 9;
-  detailRange.format.font.color = RENDER_TOKENS.edge;
-  detailRange.format.horizontalAlignment = "Center";
+  detailRange.format.font.size = 8;
+  detailRange.format.font.color = QUINTANA.inkMuted;
+  detailRange.format.horizontalAlignment = "Left";
 }
 
 /**
@@ -362,6 +360,25 @@ function styleEdgeLine(line: Excel.Shape, edge: LayoutResult["edges"][number]): 
   line.lineFormat.weight = edge.isOptimal ? EDGE_COLORS.optimalWeight : EDGE_COLORS.normalWeight;
 }
 
+function addTerminalRunway(
+  sheet: Excel.Worksheet,
+  node: LayoutNode,
+  rect: NodeRect
+): Excel.Shape | null {
+  if (!node.isLeaf) return null;
+
+  const y = rect.top + SHAPE_ROW_HEIGHT / 2;
+  const x1 = rect.left + rect.width * 0.58;
+  const x2 = rect.left + rect.width * 2.25;
+  const line = sheet.shapes.addLine(x1, y, x2, y, Excel.ConnectorType.straight);
+  line.name = `${SHAPE_PREFIX}TERMINAL_${node.id}`;
+  line.lineFormat.visible = true;
+  line.lineFormat.color = node.isOptimal ? EDGE_COLORS.optimal : EDGE_COLORS.normal;
+  line.lineFormat.weight = node.isOptimal ? EDGE_COLORS.optimalWeight : EDGE_COLORS.normalWeight;
+  setShapePlacement(line);
+  return line;
+}
+
 function writeEdgeLabelCells(
   sheet: Excel.Worksheet,
   edge: LayoutResult["edges"][number],
@@ -370,11 +387,26 @@ function writeEdgeLabelCells(
   if (!edgeLabel) return;
 
   const row = Math.min(edge.fromMidRow, edge.toMidRow);
-  const labelRange = setRowBandValue(sheet, edge.connectorCol, row, 3, edgeLabel.replace(/\n/g, " | "));
+  const parts = edgeLabel.split("\n").filter(Boolean);
+  const probability = parts.find((part) => part.includes("%")) ?? "";
+  const details = parts.filter((part) => part !== probability).join(" · ");
+
+  if (probability) {
+    const probabilityRange = setRowBandValue(sheet, edge.connectorCol, row, 1, probability);
+    probabilityRange.format.fill.color = edge.isOptimal ? QUINTANA.limeTenue : QUINTANA.cream;
+    probabilityRange.format.font.name = "Calibri";
+    probabilityRange.format.font.size = 9;
+    probabilityRange.format.font.bold = true;
+    probabilityRange.format.font.color = QUINTANA.ink;
+    probabilityRange.format.horizontalAlignment = "Right";
+  }
+
+  const labelText = [edge.label, details].filter(Boolean).join(" · ");
+  const labelRange = setRowBandValue(sheet, edge.connectorCol + 1, row, 3, labelText);
   labelRange.format.font.name = "Calibri";
-  labelRange.format.font.size = 8;
+  labelRange.format.font.size = 9;
   labelRange.format.font.color = edge.isOptimal ? EDGE_COLORS.optimal : EDGE_COLORS.normal;
-  labelRange.format.horizontalAlignment = "Center";
+  labelRange.format.horizontalAlignment = "Left";
 }
 
 /**
@@ -757,6 +789,7 @@ export async function renderToExcel(
           try {
             createNodeMarker(treeSheet, renderNode, rect);
             writeNodeCells(treeSheet, node, renderNode, calcSheetMetadata, tree);
+            addTerminalRunway(treeSheet, node, rect);
             await context.sync();
           } catch (error) {
             writeRenderDebug(
