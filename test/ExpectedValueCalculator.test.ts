@@ -1,5 +1,5 @@
 import { calculateExpectedValues } from "../src/engine/ExpectedValueCalculator";
-import { productLaunchExample, workoverExample } from "../src/engine/Examples";
+import { productLaunchExample, vacaMuertaDevelopmentExample, workoverExample } from "../src/engine/Examples";
 
 describe("ExpectedValueCalculator", () => {
   it("calculates maximize trees", () => {
@@ -21,6 +21,21 @@ describe("ExpectedValueCalculator", () => {
     expect(evMap.wo_do).toBe(315500);
     expect(evMap.wo_root).toBe(315500);
     expect(evMap.wo_no).toBe(320000);
+  });
+
+  it("includes the Vaca Muerta development example with balanced probabilities and investments", () => {
+    const tree = vacaMuertaDevelopmentExample();
+    const evMap = calculateExpectedValues(tree);
+
+    expect(tree.metadata.mode).toBe("maximize");
+    expect(evMap.vm_root).toBeGreaterThan(0);
+    expect(evMap.vm_withdraw).toBe(0);
+
+    for (const node of Object.values(tree.nodes)) {
+      if (node.type !== "chance" || node.childIds.length === 0) continue;
+      const sum = node.childIds.reduce((total, childId) => total + (tree.nodes[childId]?.probability ?? 0), 0);
+      expect(sum).toBeCloseTo(1, 8);
+    }
   });
 
   it("discounts node cost once on terminal nodes", () => {

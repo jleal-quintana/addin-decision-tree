@@ -1,7 +1,7 @@
 import React, { useCallback } from "react";
 import { useTree } from "../context/TreeContext";
 import { NodeType, TreeNode } from "../../models/types";
-import { workoverExample, oilDrillingExample, productLaunchExample } from "../../engine/Examples";
+import { workoverExample, oilDrillingExample, productLaunchExample, vacaMuertaDevelopmentExample } from "../../engine/Examples";
 import type { DrawTreeApi } from "../hooks/useDrawTree";
 
 interface TreeBuilderProps {
@@ -196,6 +196,14 @@ export function TreeBuilder({ drawApi }: TreeBuilderProps = {}) {
             >
               Workover de pozo
               <span className="btn-create-desc">Intervención · Modo Costo</span>
+            </button>
+            <button
+              className="btn-create example"
+              disabled={loading}
+              onClick={() => handleLoadExample(vacaMuertaDevelopmentExample, "Desarrollo Vaca Muerta")}
+            >
+              Desarrollo Vaca Muerta
+              <span className="btn-create-desc">Pilotos, áreas de desarrollo e inversión · Modo Valor</span>
             </button>
             <button
               className="btn-create example"
