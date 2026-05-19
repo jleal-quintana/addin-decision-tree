@@ -376,18 +376,25 @@ function writeNodeCells(
   // grandes y replica el lenguaje visual del Excel de referencia.
   const labelCol = startCol + 1;
   const labelWidth = Math.max(1, width);
-  const titleRange = setRowBandValue(sheet, labelCol, layoutNode.row, labelWidth, renderNode.title);
-  titleRange.format.fill.color = renderNode.isOptimal ? QUINTANA.limeTenue : QUINTANA.paper;
-  titleRange.format.font.name = "Calibri";
-  titleRange.format.font.size = 10;
-  titleRange.format.font.bold = true;
-  titleRange.format.font.color = renderNode.isOptimal ? QUINTANA.forest : QUINTANA.ink;
-  titleRange.format.horizontalAlignment = "Left";
+  const isTerminal = renderNode.type === "end";
+  const titleRow = isTerminal ? layoutNode.row - 1 : layoutNode.row;
+  const valueRow = isTerminal ? layoutNode.row + 2 : layoutNode.row + 1;
+  const detailRow = isTerminal ? layoutNode.row + 3 : layoutNode.row + 2;
 
-  const valueRange = sheet.getRange(rangeAddr(labelCol, layoutNode.row + 1, labelWidth, 1));
+  if (titleRow >= 0) {
+    const titleRange = setRowBandValue(sheet, labelCol, titleRow, labelWidth, renderNode.title);
+    titleRange.format.fill.color = renderNode.isOptimal ? QUINTANA.limeTenue : QUINTANA.paper;
+    titleRange.format.font.name = "Calibri";
+    titleRange.format.font.size = 10;
+    titleRange.format.font.bold = true;
+    titleRange.format.font.color = renderNode.isOptimal ? QUINTANA.forest : QUINTANA.ink;
+    titleRange.format.horizontalAlignment = "Left";
+  }
+
+  const valueRange = sheet.getRange(rangeAddr(labelCol, valueRow, labelWidth, 1));
   valueRange.unmerge();
   if (labelWidth > 1) valueRange.merge();
-  const valueCell = sheet.getCell(layoutNode.row + 1, labelCol);
+  const valueCell = sheet.getCell(valueRow, labelCol);
   const nodeRef = calcSheetMetadata.nodeRefs[layoutNode.id];
   const node = tree.nodes[layoutNode.id];
   if (nodeRef && node) {
@@ -410,7 +417,7 @@ function writeNodeCells(
   const detailText = [renderNode.secondaryLines.join(" · "), renderNode.noteLines.join(" · ")]
     .filter((part) => part.length > 0)
     .join(" — ");
-  const detailRange = setRowBandValue(sheet, labelCol, layoutNode.row + 2, labelWidth, detailText);
+  const detailRange = setRowBandValue(sheet, labelCol, detailRow, labelWidth, detailText);
   detailRange.format.fill.color = QUINTANA.paper;
   detailRange.format.font.name = "Calibri";
   detailRange.format.font.size = 8;
@@ -467,25 +474,6 @@ function styleEdgeLine(line: Excel.Shape, edge: LayoutResult["edges"][number]): 
   line.lineFormat.visible = true;
   line.lineFormat.color = edge.isOptimal ? EDGE_COLORS.optimal : EDGE_COLORS.normal;
   line.lineFormat.weight = edge.isOptimal ? EDGE_COLORS.optimalWeight : EDGE_COLORS.normalWeight;
-}
-
-function addTerminalRunway(
-  sheet: Excel.Worksheet,
-  node: LayoutNode,
-  rect: NodeRect
-): Excel.Shape | null {
-  if (!node.isLeaf) return null;
-
-  const y = rect.top + SHAPE_ROW_HEIGHT / 2;
-  const x1 = rect.left + rect.width * 0.58;
-  const x2 = rect.left + rect.width * 2.25;
-  const line = sheet.shapes.addLine(x1, y, x2, y, Excel.ConnectorType.straight);
-  line.name = `${SHAPE_PREFIX}TERMINAL_${node.id}`;
-  line.lineFormat.visible = true;
-  line.lineFormat.color = node.isOptimal ? EDGE_COLORS.optimal : EDGE_COLORS.normal;
-  line.lineFormat.weight = node.isOptimal ? EDGE_COLORS.optimalWeight : EDGE_COLORS.normalWeight;
-  setShapePlacement(line);
-  return line;
 }
 
 function writeEdgeLabelCells(
@@ -899,7 +887,6 @@ export async function renderToExcel(
           try {
             createNodeMarker(treeSheet, renderNode, rect);
             writeNodeCells(treeSheet, node, renderNode, inlineCalcSheetMetadata, tree);
-            addTerminalRunway(treeSheet, node, rect);
             await context.sync();
           } catch (error) {
             writeRenderDebug(

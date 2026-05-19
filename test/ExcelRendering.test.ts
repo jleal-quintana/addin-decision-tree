@@ -42,7 +42,7 @@ describe("Excel rendering", () => {
     expect(nodeShape.fill.color).toBe("#FFFFFF");
     expect(nodeShape.width).toBeLessThanOrEqual(24);
     expect(nodeShape.lineFormat.weight).toBe(2);
-    expect(sheet.shapes.items.some((shape) => shape.name.startsWith("DT_TERMINAL_"))).toBe(true);
+    expect(sheet.shapes.items.some((shape) => shape.name.startsWith("DT_TERMINAL_"))).toBe(false);
   });
 
   it("renders via ShapeManager and clears previous artifacts", async () => {
