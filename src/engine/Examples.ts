@@ -205,6 +205,69 @@ export function vacaMuertaDevelopmentExample(): DecisionTreeData {
     customFields: {},
   };
 
+  const chance = (
+    id: string,
+    label: string,
+    parentId: string | null,
+    childIds: string[],
+    probability: number | null,
+    cost: number | null = 40,
+    customFields: Record<string, string | number | null> = {}
+  ): DecisionTreeData["nodes"][string] => ({
+    ...base,
+    id,
+    type: "chance",
+    label,
+    cost,
+    time: cost ? "MM$" : null,
+    parentId,
+    childIds,
+    probability,
+    customFields,
+  });
+
+  const terminal = (
+    id: string,
+    label: string,
+    parentId: string,
+    probability: number,
+    outcome: number,
+    investment = 160
+  ): DecisionTreeData["nodes"][string] => ({
+    ...base,
+    id,
+    type: "end",
+    label,
+    // El Excel profesional calcula el EMV con el outcome bruto de desarrollo;
+    // la inversión terminal se muestra como dato auditivo/neto, no se resta en
+    // el rollback principal. Las inversiones de piloto sí entran como cost=40.
+    payoff: outcome,
+    cost: null,
+    time: "MM$",
+    parentId,
+    childIds: [],
+    probability,
+    customFields: {
+      Outcome: `${outcome} MM$`,
+      Inversión: `${investment} MM$`,
+      Neto: `${outcome - investment} MM$`,
+    },
+  });
+
+  const noDevelop = (id: string, parentId: string, probability: number): DecisionTreeData["nodes"][string] => ({
+    ...base,
+    id,
+    type: "end",
+    label: "No desarrollar",
+    payoff: 0,
+    cost: null,
+    time: "MM$",
+    parentId,
+    childIds: [],
+    probability,
+    customFields: { Outcome: "0 MM$", Inversión: "0 MM$", Neto: "0 MM$" },
+  });
+
   return {
     rootId: "vm_root",
     metadata: {
@@ -223,127 +286,58 @@ export function vacaMuertaDevelopmentExample(): DecisionTreeData {
         childIds: ["vm_pilot", "vm_withdraw"],
         probability: null,
       },
-      vm_pilot: {
-        ...base,
-        id: "vm_pilot",
-        type: "chance",
-        label: "Pilot 1",
-        cost: 40,
-        time: "MM$",
-        parentId: "vm_root",
-        childIds: ["vm_p1_success", "vm_p1_fail"],
-        probability: null,
-        customFields: { "Inversión piloto": "40 MM$", "NPV por área": "530 MM$" },
-      },
+      vm_pilot: chance("vm_pilot", "Pilot 1", "vm_root", ["vm_p1_success", "vm_p1_fail"], null, 40, {
+        "COS Pilot 1": "30%",
+        "Costo piloto": "40 MM$",
+        "NPV por área": "530 MM$",
+      }),
       vm_withdraw: {
         ...base,
         id: "vm_withdraw",
         type: "end",
         label: "Retirarse",
         payoff: 0,
+        cost: null,
+        time: "MM$",
         parentId: "vm_root",
         childIds: [],
         probability: null,
+        customFields: {},
       },
-      vm_p1_success: {
-        ...base,
-        id: "vm_p1_success",
-        type: "chance",
-        label: "P1 Success + P2",
-        cost: 40,
-        time: "MM$",
-        parentId: "vm_pilot",
-        childIds: ["vm_p2_success_a", "vm_p2_fail_a"],
-        probability: 0.3,
-      },
-      vm_p1_fail: {
-        ...base,
-        id: "vm_p1_fail",
-        type: "chance",
-        label: "P1 Fail + P2",
-        cost: 40,
-        time: "MM$",
-        parentId: "vm_pilot",
-        childIds: ["vm_p2_success_b", "vm_p2_fail_b"],
-        probability: 0.7,
-      },
-      vm_p2_success_a: {
-        ...base,
-        id: "vm_p2_success_a",
-        type: "chance",
-        label: "P2 Success + P3",
-        cost: 40,
-        time: "MM$",
-        parentId: "vm_p1_success",
-        childIds: ["vm_p3_success_a", "vm_p3_fail_a"],
-        probability: 0.25,
-      },
-      vm_p2_fail_a: {
-        ...base,
-        id: "vm_p2_fail_a",
-        type: "chance",
-        label: "P2 Fail + P3",
-        cost: 40,
-        time: "MM$",
-        parentId: "vm_p1_success",
-        childIds: ["vm_p3_success_b", "vm_p3_fail_b"],
-        probability: 0.75,
-      },
-      vm_p2_success_b: {
-        ...base,
-        id: "vm_p2_success_b",
-        type: "chance",
-        label: "P2 Success + P3",
-        cost: 40,
-        time: "MM$",
-        parentId: "vm_p1_fail",
-        childIds: ["vm_p3_success_c", "vm_p3_fail_c"],
-        probability: 0.25,
-      },
-      vm_p2_fail_b: {
-        ...base,
-        id: "vm_p2_fail_b",
-        type: "chance",
-        label: "P2 Fail + P3",
-        cost: 40,
-        time: "MM$",
-        parentId: "vm_p1_fail",
-        childIds: ["vm_p3_success_d", "vm_p3_fail_d"],
-        probability: 0.75,
-      },
-      vm_p3_success_a: terminal("vm_p3_success_a", "Dev 4 áreas", "vm_p2_success_a", 0.22, 2120, 160),
-      vm_p3_fail_a: terminal("vm_p3_fail_a", "Dev 3 áreas", "vm_p2_success_a", 0.78, 1590, 160),
-      vm_p3_success_b: terminal("vm_p3_success_b", "Dev 3 áreas", "vm_p2_fail_a", 0.19, 1590, 160),
-      vm_p3_fail_b: terminal("vm_p3_fail_b", "Dev 2 áreas", "vm_p2_fail_a", 0.81, 1060, 160),
-      vm_p3_success_c: terminal("vm_p3_success_c", "Dev 3 áreas", "vm_p2_success_b", 0.22, 1590, 160),
-      vm_p3_fail_c: terminal("vm_p3_fail_c", "Dev 2 áreas", "vm_p2_success_b", 0.78, 1060, 160),
-      vm_p3_success_d: terminal("vm_p3_success_d", "Dev 2 áreas", "vm_p2_fail_b", 0.19, 1060, 160),
-      vm_p3_fail_d: terminal("vm_p3_fail_d", "Dev 1 área", "vm_p2_fail_b", 0.81, 530, 160),
+
+      vm_p1_success: chance("vm_p1_success", "P1 Success + P2", "vm_pilot", ["vm_p2_success_a", "vm_p2_fail_a"], 0.30),
+      vm_p1_fail: chance("vm_p1_fail", "P1 Fail + P2", "vm_pilot", ["vm_p2_success_b", "vm_p2_fail_b"], 0.70),
+
+      vm_p2_success_a: chance("vm_p2_success_a", "P2 Success + P3", "vm_p1_success", ["vm_p3_success_a", "vm_p3_fail_a"], 0.25),
+      vm_p2_fail_a: chance("vm_p2_fail_a", "P2 Fail + P3", "vm_p1_success", ["vm_p3_success_b", "vm_p3_fail_b"], 0.75),
+      vm_p2_success_b: chance("vm_p2_success_b", "P2 Success + P3", "vm_p1_fail", ["vm_p3_success_c", "vm_p3_fail_c"], 0.25),
+      vm_p2_fail_b: chance("vm_p2_fail_b", "P2 Fail + P3", "vm_p1_fail", ["vm_p3_success_d", "vm_no_develop"], 0.75),
+
+      vm_p3_success_a: chance("vm_p3_success_a", "P3 Success + P4", "vm_p2_success_a", ["vm_dev4_a", "vm_dev3_a"], 0.22),
+      vm_p3_fail_a: chance("vm_p3_fail_a", "P3 Fail + P4", "vm_p2_success_a", ["vm_dev3_b", "vm_dev2_a"], 0.78),
+      vm_p3_success_b: chance("vm_p3_success_b", "P3 Success + P4", "vm_p2_fail_a", ["vm_dev3_c", "vm_dev2_b"], 0.19),
+      vm_p3_fail_b: chance("vm_p3_fail_b", "P3 Fail + P4", "vm_p2_fail_a", ["vm_dev2_c", "vm_dev1_a"], 0.81),
+      vm_p3_success_c: chance("vm_p3_success_c", "P3 Success + P4", "vm_p2_success_b", ["vm_dev3_d", "vm_dev2_d"], 0.22),
+      vm_p3_fail_c: chance("vm_p3_fail_c", "P3 Fail + P4", "vm_p2_success_b", ["vm_dev2_e", "vm_dev1_b"], 0.78),
+      vm_p3_success_d: chance("vm_p3_success_d", "P3 Success + P4", "vm_p2_fail_b", ["vm_dev2_f", "vm_dev1_c"], 0.16),
+
+      vm_dev4_a: terminal("vm_dev4_a", "Dev 4 áreas", "vm_p3_success_a", 0.19, 2120),
+      vm_dev3_a: terminal("vm_dev3_a", "Dev 3 áreas", "vm_p3_success_a", 0.81, 1590),
+      vm_dev3_b: terminal("vm_dev3_b", "Dev 3 áreas", "vm_p3_fail_a", 0.16, 1590),
+      vm_dev2_a: terminal("vm_dev2_a", "Dev 2 áreas", "vm_p3_fail_a", 0.84, 1060),
+      vm_dev3_c: terminal("vm_dev3_c", "Dev 3 áreas", "vm_p3_success_b", 0.16, 1590),
+      vm_dev2_b: terminal("vm_dev2_b", "Dev 2 áreas", "vm_p3_success_b", 0.84, 1060),
+      vm_dev2_c: terminal("vm_dev2_c", "Dev 2 áreas", "vm_p3_fail_b", 0.13, 1060),
+      vm_dev1_a: terminal("vm_dev1_a", "Dev 1 área", "vm_p3_fail_b", 0.87, 530),
+      vm_dev3_d: terminal("vm_dev3_d", "Dev 3 áreas", "vm_p3_success_c", 0.19, 1590),
+      vm_dev2_d: terminal("vm_dev2_d", "Dev 2 áreas", "vm_p3_success_c", 0.81, 1060),
+      vm_dev2_e: terminal("vm_dev2_e", "Dev 2 áreas", "vm_p3_fail_c", 0.16, 1060),
+      vm_dev1_b: terminal("vm_dev1_b", "Dev 1 área", "vm_p3_fail_c", 0.84, 530),
+      vm_dev2_f: terminal("vm_dev2_f", "Dev 2 áreas", "vm_p3_success_d", 0.13, 1060),
+      vm_dev1_c: terminal("vm_dev1_c", "Dev 1 área", "vm_p3_success_d", 0.87, 530),
+      vm_no_develop: noDevelop("vm_no_develop", "vm_p2_fail_b", 0.84),
     },
   };
-
-  function terminal(
-    id: string,
-    label: string,
-    parentId: string,
-    probability: number,
-    outcome: number,
-    investment: number
-  ): DecisionTreeData["nodes"][string] {
-    return {
-      ...base,
-      id,
-      type: "end",
-      label,
-      payoff: outcome,
-      cost: investment,
-      time: "MM$",
-      parentId,
-      childIds: [],
-      probability,
-      customFields: { Outcome: `${outcome} MM$`, Inversión: `${investment} MM$`, Neto: `${outcome - investment} MM$` },
-    };
-  }
 }
 
 export function workoverExample(): DecisionTreeData {

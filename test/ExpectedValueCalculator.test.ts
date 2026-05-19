@@ -28,7 +28,12 @@ describe("ExpectedValueCalculator", () => {
     const evMap = calculateExpectedValues(tree);
 
     expect(tree.metadata.mode).toBe("maximize");
-    expect(evMap.vm_root).toBeGreaterThan(0);
+    expect(evMap.vm_root).toBeCloseTo(289.511825, 6);
+    expect(evMap.vm_pilot).toBeCloseTo(289.511825, 6);
+    // Estos nodos ya incluyen el costo de rama de 40 MM$; en el Excel pro
+    // aparecen como valor bruto separado de la celda de costo (-40).
+    expect(evMap.vm_p1_success).toBeCloseTo(723.19025, 6);
+    expect(evMap.vm_p1_fail).toBeCloseTo(160.7925, 6);
     expect(evMap.vm_withdraw).toBe(0);
 
     for (const node of Object.values(tree.nodes)) {
