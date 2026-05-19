@@ -256,7 +256,9 @@ function createNodeMarker(
   marker.fill.setSolidColor(QUINTANA.paper);
   marker.lineFormat.visible = true;
   marker.lineFormat.color = node.isOptimal ? RENDER_TOKENS.accent : theme.border;
-  marker.lineFormat.weight = node.isOptimal ? 3 : 2.5;
+  // Excel Win32 rechaza floats en ShapeLineFormat.weight con
+  // "The argument is invalid...". Usar enteros siempre.
+  marker.lineFormat.weight = node.isOptimal ? 3 : 2;
   return marker;
 }
 

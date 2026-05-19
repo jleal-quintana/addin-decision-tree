@@ -41,6 +41,7 @@ describe("Excel rendering", () => {
     expect(nodeShape).toBeTruthy();
     expect(nodeShape.fill.color).toBe("#FFFFFF");
     expect(nodeShape.width).toBeLessThanOrEqual(24);
+    expect(nodeShape.lineFormat.weight).toBe(2);
     expect(sheet.shapes.items.some((shape) => shape.name.startsWith("DT_TERMINAL_"))).toBe(true);
   });
 
