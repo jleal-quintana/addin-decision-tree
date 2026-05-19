@@ -1,10 +1,6 @@
 import { isDebugEnabled, logDiagnostic, runTrackedOperation } from "../debug/excelDiagnostics";
-import {
-  CalcTablePlacement,
-  calculationTableRowCount,
-  writeCalculationTable,
-} from "../excel/CalculationSheet";
-import { cellAddr, rangeAddr } from "../excel/ExcelAddress";
+import { CalcTablePlacement } from "../excel/CalculationSheet";
+import { cellAddr, colLetter, rangeAddr } from "../excel/ExcelAddress";
 import { CALC_SHEET_NAME, TREE_SHEET_NAME } from "../excel/WorkbookConstants";
 import {
   CalcSheetMetadata,
@@ -92,6 +88,10 @@ function writeRenderDebug(sheet: Excel.Worksheet, title: string, detail = ""): v
   sheet.getRange("A3:A4").format.font.name = "Calibri";
   sheet.getRange("A3:A4").format.font.size = 10;
   sheet.getRange("A3:A4").format.font.color = QUINTANA.beige;
+}
+
+function sameSheetRef(col: number, row: number): string {
+  return `$${colLetter(col)}$${row + 1}`;
 }
 
 function setRowBandValue(
@@ -260,6 +260,100 @@ function createNodeMarker(
   // "The argument is invalid...". Usar enteros siempre.
   marker.lineFormat.weight = node.isOptimal ? 3 : 2;
   return marker;
+}
+
+function buildInlineCalculationMetadata(
+  layout: LayoutResult,
+  sheetName: string
+): CalcSheetMetadata {
+  const metadata: CalcSheetMetadata = {
+    sheetName,
+    tableName: "DT_InlineCalc",
+    nodeRefs: {},
+  };
+  const sheetPrefix = `'${sheetName.replace(/'/g, "''")}'!`;
+
+  for (let index = 0; index < layout.nodes.length; index++) {
+    const node = layout.nodes[index];
+    const helperCol = node.col;
+    const valueCol = node.col + 1;
+    metadata.nodeRefs[node.id] = {
+      rowIndex: index,
+      sheetRow: node.row,
+      probabilityAddress: `${sheetPrefix}${cellAddr(helperCol, node.row)}`,
+      costAddress: `${sheetPrefix}${cellAddr(helperCol, node.row + 1)}`,
+      terminalValueAddress: `${sheetPrefix}${cellAddr(helperCol, node.row + 2)}`,
+      childrenEvAddress: `${sheetPrefix}${cellAddr(valueCol, node.row + 2)}`,
+      netEvAddress: `${sheetPrefix}${cellAddr(valueCol, node.row + 1)}`,
+    };
+  }
+
+  return metadata;
+}
+
+function writeInlineCalculationCells(
+  sheet: Excel.Worksheet,
+  tree: DecisionTreeData,
+  layout: LayoutResult,
+  metadata: CalcSheetMetadata
+): void {
+  const costOp = tree.metadata.mode === "minimize" ? "+" : "-";
+
+  for (const layoutNode of layout.nodes) {
+    const node = tree.nodes[layoutNode.id];
+    if (!node) continue;
+    const helperCol = layoutNode.col;
+    const valueCol = layoutNode.col + 1;
+
+    const probCell = sheet.getCell(layoutNode.row, helperCol);
+    probCell.values = [[node.probability ?? ""]];
+    probCell.numberFormat = [["0%"]];
+
+    const costCell = sheet.getCell(layoutNode.row + 1, helperCol);
+    costCell.values = [[node.cost ?? ""]];
+    costCell.numberFormat = [["$#,##0"]];
+
+    const terminalCell = sheet.getCell(layoutNode.row + 2, helperCol);
+    terminalCell.values = [[node.type === "end" ? node.payoff ?? 0 : ""]];
+    terminalCell.numberFormat = [["$#,##0"]];
+  }
+
+  for (const layoutNode of [...layout.nodes].reverse()) {
+    const node = tree.nodes[layoutNode.id];
+    if (!node) continue;
+    const ref = metadata.nodeRefs[node.id];
+    const childrenEvCell = sheet.getRange(ref.childrenEvAddress.split("!").pop() ?? cellAddr(layoutNode.col + 1, layoutNode.row + 2));
+    const netEvCell = sheet.getRange(ref.netEvAddress.split("!").pop() ?? cellAddr(layoutNode.col + 1, layoutNode.row + 1));
+
+    if (node.type === "end" || node.childIds.length === 0) {
+      childrenEvCell.values = [[""]];
+      netEvCell.formulas = [[`=N(${sameSheetRef(layoutNode.col, layoutNode.row + 2)})${costOp}N(${sameSheetRef(layoutNode.col, layoutNode.row + 1)})`]];
+      netEvCell.numberFormat = [["$#,##0"]];
+      continue;
+    }
+
+    if (node.type === "chance") {
+      const terms = node.childIds
+        .map((childId) => {
+          const childLayout = layout.nodes.find((item) => item.id === childId);
+          const childRef = metadata.nodeRefs[childId];
+          if (!childLayout || !childRef) return null;
+          return `${sameSheetRef(childLayout.col, childLayout.row)}*${childRef.netEvAddress}`;
+        })
+        .filter((term): term is string => Boolean(term));
+      childrenEvCell.formulas = [[terms.length > 0 ? `=SUM(${terms.join(",")})` : "=0"]];
+    } else {
+      const childRefs = node.childIds
+        .map((childId) => metadata.nodeRefs[childId]?.netEvAddress)
+        .filter((addr): addr is string => Boolean(addr));
+      const fn = tree.metadata.mode === "minimize" ? "MIN" : "MAX";
+      childrenEvCell.formulas = [[childRefs.length > 0 ? `=${fn}(${childRefs.join(",")})` : "=0"]];
+    }
+
+    childrenEvCell.numberFormat = [["$#,##0"]];
+    netEvCell.formulas = [[`=${ref.childrenEvAddress}${costOp}N(${sameSheetRef(layoutNode.col, layoutNode.row + 1)})`]];
+    netEvCell.numberFormat = [["$#,##0"]];
+  }
 }
 
 function writeNodeCells(
@@ -722,8 +816,8 @@ function applyPageSetup(sheet: Excel.Worksheet, totalCols: number, lastRowIdx: n
 export async function renderToExcel(
   layout: LayoutResult,
   renderModel: RenderModel,
-  calcSheetMetadata: CalcSheetMetadata,
-  calcPlacement: CalcTablePlacement,
+  _calcSheetMetadata: CalcSheetMetadata,
+  _calcPlacement: CalcTablePlacement,
   tree: DecisionTreeData,
   _options: { debug?: boolean } = {}
 ): Promise<void> {
@@ -790,6 +884,7 @@ export async function renderToExcel(
           };
         }
 
+        const inlineCalcSheetMetadata = buildInlineCalculationMetadata(layout, TREE_SHEET_NAME);
         const renderNodeById = Object.fromEntries(renderModel.nodes.map((node) => [node.id, node]));
         const renderEdgeByKey = Object.fromEntries(
           renderModel.edges.map((edge) => [`${edge.fromId}-${edge.toId}`, edge])
@@ -803,7 +898,7 @@ export async function renderToExcel(
           }
           try {
             createNodeMarker(treeSheet, renderNode, rect);
-            writeNodeCells(treeSheet, node, renderNode, calcSheetMetadata, tree);
+            writeNodeCells(treeSheet, node, renderNode, inlineCalcSheetMetadata, tree);
             addTerminalRunway(treeSheet, node, rect);
             await context.sync();
           } catch (error) {
@@ -911,11 +1006,15 @@ export async function renderToExcel(
           }
         }
 
+        await context.sync();
+        writeInlineCalculationCells(treeSheet, tree, layout, inlineCalcSheetMetadata);
+        await context.sync();
+
         // Secciones inferiores del documento. Cada una se ejecuta dentro de un
         // try/catch + sync: si una falla, la siguiente igual se intenta y el
         // documento queda parcialmente armado en lugar de morir entero.
         // Cuando algo explota, el motivo queda en A3:A4 (writeRenderDebug).
-        let cursor = calcPlacement.startRow;
+        let cursor = layout.maxRow + GRID.rowGap + 1;
         const safeSection = async (name: string, fn: () => number | Promise<number>): Promise<void> => {
           try {
             const next = await fn();
@@ -932,11 +1031,6 @@ export async function renderToExcel(
             }
           }
         };
-
-        await safeSection("memoria de cálculo", async () => {
-          await writeCalculationTable(treeSheet, tree, calcPlacement);
-          return calcPlacement.startRow + calculationTableRowCount(tree);
-        });
 
         await safeSection("leyenda", async () => renderLegend(treeSheet, cursor + 1, totalCols));
 
@@ -961,7 +1055,7 @@ export async function renderToExcel(
         await safeSection("tabla de caminos", async () => {
           const paths = enumeratePaths(tree);
           return paths.length > 0
-            ? renderPathsTable(treeSheet, cursor, totalCols, tree, paths, calcSheetMetadata)
+            ? renderPathsTable(treeSheet, cursor, totalCols, tree, paths, inlineCalcSheetMetadata)
             : cursor;
         });
 

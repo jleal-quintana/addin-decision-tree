@@ -106,7 +106,10 @@ export function computeLayout(
         toRow: childRow,
         toCol: childCol,
         toMidRow: childRow + Math.floor(grid.nodeRows / 2),
-        connectorCol: col + grid.nodeCols + Math.max(1, Math.floor(grid.colGap / 2)),
+        connectorCol: Math.min(
+          childCol - 1,
+          col + grid.nodeCols + Math.max(0, Math.floor(grid.colGap / 2))
+        ),
         calcRow: calcSheet?.nodeRefs[child.id]?.sheetRow ?? null,
         label: child.label,
         probability: child.probability,
