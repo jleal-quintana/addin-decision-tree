@@ -325,31 +325,44 @@ function writeNodeCells(
 }
 
 /**
- * Crea el conector elbow con coords absolutas (sin anclar todavía). El anclaje
- * shape-a-shape se hace después en `anchorEdgeToShapes` con su propio sync,
- * porque connectBeginShape/connectEndShape pueden fallar en algunos hosts y
- * Office.js solo reporta el error al sync (try/catch sincrónico no sirve).
+ * Conector tipo VM Plan: una diagonal corta que abre/cierra la rama y luego un
+ * tramo horizontal largo. No usamos `elbow` porque genera ángulos de 90°; el
+ * workbook de referencia usa doglegs con diagonal + recta.
  */
-function addEdgeLine(
+function addEdgeLines(
   sheet: Excel.Worksheet,
   edge: LayoutResult["edges"][number],
   fromRect: NodeRect,
   toRect: NodeRect
-): Excel.Shape {
-  const beginLeft = fromRect.left + fromRect.width;
+): Excel.Shape[] {
+  const beginLeft = fromRect.left + fromRect.width * 0.62;
   const beginTop = fromRect.top + SHAPE_ROW_HEIGHT / 2;
-  const endLeft = toRect.left;
+  const endLeft = toRect.left + toRect.width * 0.38;
   const endTop = toRect.top + SHAPE_ROW_HEIGHT / 2;
+  const horizontalStartLeft = Math.min(
+    endLeft - 10,
+    beginLeft + Math.max(18, Math.min(42, (endLeft - beginLeft) * 0.28))
+  );
 
-  const line = sheet.shapes.addLine(
+  const diagonal = sheet.shapes.addLine(
     beginLeft,
     beginTop,
+    horizontalStartLeft,
+    endTop,
+    Excel.ConnectorType.straight
+  );
+  diagonal.name = `${SHAPE_PREFIX}EDGE_${edge.fromId}_${edge.toId}_DIAG`;
+
+  const horizontal = sheet.shapes.addLine(
+    horizontalStartLeft,
+    endTop,
     endLeft,
     endTop,
     Excel.ConnectorType.straight
   );
-  line.name = `${SHAPE_PREFIX}EDGE_${edge.fromId}_${edge.toId}`;
-  return line;
+  horizontal.name = `${SHAPE_PREFIX}EDGE_${edge.fromId}_${edge.toId}_H`;
+
+  return [diagonal, horizontal];
 }
 
 function styleEdgeLine(line: Excel.Shape, edge: LayoutResult["edges"][number]): void {
@@ -814,12 +827,13 @@ export async function renderToExcel(
           const renderEdge = renderEdgeByKey[`${edge.fromId}-${edge.toId}`];
           const edgeKey = `${edge.fromId}->${edge.toId}`;
 
-          // Paso 1a: addLine + name (sync solo).
-          let line: Excel.Shape | null = null;
+          // Paso 1a: addLine + name (sync solo). Cada edge son dos shapes:
+          // diagonal + horizontal, para lograr la forma exacta del VM Plan.
+          let lines: Excel.Shape[] = [];
           try {
-            line = addEdgeLine(treeSheet, edge, fromRect, toRect);
+            lines = addEdgeLines(treeSheet, edge, fromRect, toRect);
             await context.sync();
-            logDiagnostic(`edge.add ${edgeKey}`, "success");
+            logDiagnostic(`edge.add ${edgeKey}`, "success", { segments: lines.length });
           } catch (error) {
             const msg = error instanceof Error ? `${error.name}: ${error.message}` : String(error);
             logDiagnostic(`edge.add ${edgeKey}`, "error", { error: msg });
@@ -831,55 +845,53 @@ export async function renderToExcel(
             continue;
           }
 
-          // Paso 1b: lineFormat dividido en 3 sub-pasos para aislar cuál
-          // property rompe en este host. Antes hacíamos visible+color+weight
-          // en una sola sync y caía universalmente con "argument invalid";
-          // separados sabemos cuál exactamente.
           const targetColor = edge.isOptimal ? EDGE_COLORS.optimal : EDGE_COLORS.normal;
           const targetWeight = edge.isOptimal ? EDGE_COLORS.optimalWeight : EDGE_COLORS.normalWeight;
 
-          try {
-            line.lineFormat.visible = true;
-            await context.sync();
-            logDiagnostic(`edge.style.visible ${edgeKey}`, "success");
-          } catch (error) {
-            const msg = error instanceof Error ? `${error.name}: ${error.message}` : String(error);
-            logDiagnostic(`edge.style.visible ${edgeKey}`, "error", { error: msg });
-            try { await context.sync(); } catch { /* ignore */ }
-          }
-
-          try {
-            line.lineFormat.color = targetColor;
-            await context.sync();
-            logDiagnostic(`edge.style.color ${edgeKey}`, "success", { color: targetColor });
-          } catch (error) {
-            const msg = error instanceof Error ? `${error.name}: ${error.message}` : String(error);
-            logDiagnostic(`edge.style.color ${edgeKey}`, "error", { color: targetColor, error: msg });
-            try { await context.sync(); } catch { /* ignore */ }
-          }
-
-          try {
-            line.lineFormat.weight = targetWeight;
-            await context.sync();
-            logDiagnostic(`edge.style.weight ${edgeKey}`, "success", { weight: targetWeight });
-          } catch (error) {
-            const msg = error instanceof Error ? `${error.name}: ${error.message}` : String(error);
-            logDiagnostic(`edge.style.weight ${edgeKey}`, "error", { weight: targetWeight, error: msg });
-            try { await context.sync(); } catch { /* ignore */ }
-          }
-
-          // Paso 1c: placement = oneCell. Falla en algunos hosts para Lines.
-          try {
-            setShapePlacement(line);
-            await context.sync();
-            logDiagnostic(`edge.placement ${edgeKey}`, "success");
-          } catch (error) {
-            const msg = error instanceof Error ? `${error.name}: ${error.message}` : String(error);
-            logDiagnostic(`edge.placement ${edgeKey}`, "error", { error: msg });
+          for (const line of lines) {
             try {
+              line.lineFormat.visible = true;
               await context.sync();
-            } catch {
-              /* ignore */
+              logDiagnostic(`edge.style.visible ${edgeKey}`, "success", { shape: line.name });
+            } catch (error) {
+              const msg = error instanceof Error ? `${error.name}: ${error.message}` : String(error);
+              logDiagnostic(`edge.style.visible ${edgeKey}`, "error", { shape: line.name, error: msg });
+              try { await context.sync(); } catch { /* ignore */ }
+            }
+
+            try {
+              line.lineFormat.color = targetColor;
+              await context.sync();
+              logDiagnostic(`edge.style.color ${edgeKey}`, "success", { shape: line.name, color: targetColor });
+            } catch (error) {
+              const msg = error instanceof Error ? `${error.name}: ${error.message}` : String(error);
+              logDiagnostic(`edge.style.color ${edgeKey}`, "error", { shape: line.name, color: targetColor, error: msg });
+              try { await context.sync(); } catch { /* ignore */ }
+            }
+
+            try {
+              line.lineFormat.weight = targetWeight;
+              await context.sync();
+              logDiagnostic(`edge.style.weight ${edgeKey}`, "success", { shape: line.name, weight: targetWeight });
+            } catch (error) {
+              const msg = error instanceof Error ? `${error.name}: ${error.message}` : String(error);
+              logDiagnostic(`edge.style.weight ${edgeKey}`, "error", { shape: line.name, weight: targetWeight, error: msg });
+              try { await context.sync(); } catch { /* ignore */ }
+            }
+
+            // placement = oneCell. Falla en algunos hosts para Lines.
+            try {
+              setShapePlacement(line);
+              await context.sync();
+              logDiagnostic(`edge.placement ${edgeKey}`, "success", { shape: line.name });
+            } catch (error) {
+              const msg = error instanceof Error ? `${error.name}: ${error.message}` : String(error);
+              logDiagnostic(`edge.placement ${edgeKey}`, "error", { shape: line.name, error: msg });
+              try {
+                await context.sync();
+              } catch {
+                /* ignore */
+              }
             }
           }
 
