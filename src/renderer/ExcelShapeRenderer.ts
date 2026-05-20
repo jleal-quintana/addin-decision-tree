@@ -11,7 +11,7 @@ import {
   RenderNodeContent,
 } from "../models/types";
 import { QUINTANA, RENDER_TOKENS } from "../rendering/designTokens";
-import { enumeratePaths, PathRow } from "../engine/PathEnumeration";
+import { PathRow } from "../engine/PathEnumeration";
 import { EDGE_COLORS, GRID, ROW_HEIGHT, SHAPE_PREFIX, SHAPE_ROW_HEIGHT } from "./StyleConfig";
 
 type ShapeType = "decision" | "chance" | "end";
@@ -109,6 +109,40 @@ function setRowBandValue(
   const topLeft = sheet.getCell(row, col);
   topLeft.values = [[value]];
   return topLeft;
+}
+
+function styleTreeInputCell(cell: Excel.Range): void {
+  cell.format.fill.color = QUINTANA.cream;
+  cell.format.font.name = "Calibri";
+  cell.format.font.size = 8;
+  cell.format.font.color = QUINTANA.inkMuted;
+  cell.format.horizontalAlignment = "Right";
+}
+
+function styleTreeFormulaCell(cell: Excel.Range, primary = false): void {
+  cell.format.fill.color = primary ? QUINTANA.limeTenue : QUINTANA.slateTenue;
+  cell.format.font.name = "Calibri";
+  cell.format.font.size = primary ? 9 : 8;
+  cell.format.font.bold = primary;
+  cell.format.font.color = primary ? QUINTANA.forest : QUINTANA.inkMuted;
+  cell.format.horizontalAlignment = "Right";
+}
+
+function styleTreeLabelCell(cell: Excel.Range, isOptimal: boolean): void {
+  cell.format.fill.color = isOptimal ? QUINTANA.limeTenue : QUINTANA.paper;
+  cell.format.font.name = "Calibri";
+  cell.format.font.size = 10;
+  cell.format.font.bold = true;
+  cell.format.font.color = isOptimal ? QUINTANA.forest : QUINTANA.ink;
+  cell.format.horizontalAlignment = "Left";
+}
+
+function styleTreeDetailCell(cell: Excel.Range): void {
+  cell.format.fill.color = QUINTANA.paper;
+  cell.format.font.name = "Calibri";
+  cell.format.font.size = 8;
+  cell.format.font.color = QUINTANA.inkMuted;
+  cell.format.horizontalAlignment = "Left";
 }
 
 async function getOrCreateSheet(
@@ -309,29 +343,17 @@ function writeInlineCalculationCells(
     const probCell = sheet.getCell(layoutNode.row, helperCol);
     probCell.values = [[node.probability ?? ""]];
     probCell.numberFormat = [['"p="0%']];
-    probCell.format.fill.color = node.probability !== null ? QUINTANA.cream : QUINTANA.paper;
-    probCell.format.font.name = "Calibri";
-    probCell.format.font.size = 8;
-    probCell.format.font.color = QUINTANA.inkMuted;
-    probCell.format.horizontalAlignment = "Right";
+    styleTreeInputCell(probCell);
 
     const costCell = sheet.getCell(layoutNode.row + 1, helperCol);
     costCell.values = [[node.cost ?? ""]];
     costCell.numberFormat = [['"Costo="$#,##0']];
-    costCell.format.fill.color = node.cost !== null && node.cost !== 0 ? QUINTANA.cream : QUINTANA.paper;
-    costCell.format.font.name = "Calibri";
-    costCell.format.font.size = 8;
-    costCell.format.font.color = QUINTANA.inkMuted;
-    costCell.format.horizontalAlignment = "Right";
+    styleTreeInputCell(costCell);
 
     const terminalCell = sheet.getCell(layoutNode.row + 2, helperCol);
     terminalCell.values = [[node.type === "end" ? node.payoff ?? 0 : ""]];
     terminalCell.numberFormat = [['"Terminal="$#,##0']];
-    terminalCell.format.fill.color = node.type === "end" ? QUINTANA.cream : QUINTANA.paper;
-    terminalCell.format.font.name = "Calibri";
-    terminalCell.format.font.size = 8;
-    terminalCell.format.font.color = QUINTANA.inkMuted;
-    terminalCell.format.horizontalAlignment = "Right";
+    styleTreeInputCell(terminalCell);
   }
 
   for (const layoutNode of [...layout.nodes].reverse()) {
@@ -347,13 +369,8 @@ function writeInlineCalculationCells(
       childrenEvCell.values = [[""]];
       netEvCell.formulas = [[`=N(${sameSheetRef(helperCol, layoutNode.row + 2)})${costOp}N(${sameSheetRef(helperCol, layoutNode.row + 1)})`]];
       netEvCell.numberFormat = [[`"${evLabel}"$#,##0`]];
-      childrenEvCell.format.fill.color = QUINTANA.paper;
-      netEvCell.format.fill.color = QUINTANA.slateTenue;
-      netEvCell.format.font.name = "Calibri";
-      netEvCell.format.font.size = 9;
-      netEvCell.format.font.bold = true;
-      netEvCell.format.font.color = RENDER_TOKENS.edge;
-      netEvCell.format.horizontalAlignment = "Right";
+      styleTreeFormulaCell(childrenEvCell);
+      styleTreeFormulaCell(netEvCell, true);
       continue;
     }
 
@@ -378,17 +395,8 @@ function writeInlineCalculationCells(
     childrenEvCell.numberFormat = [['"Hijos="$#,##0']];
     netEvCell.formulas = [[`=${ref.childrenEvAddress}${costOp}N(${sameSheetRef(helperCol, layoutNode.row + 1)})`]];
     netEvCell.numberFormat = [[`"${evLabel}"$#,##0`]];
-    childrenEvCell.format.fill.color = QUINTANA.cream;
-    childrenEvCell.format.font.name = "Calibri";
-    childrenEvCell.format.font.size = 8;
-    childrenEvCell.format.font.color = QUINTANA.inkMuted;
-    childrenEvCell.format.horizontalAlignment = "Right";
-    netEvCell.format.fill.color = QUINTANA.slateTenue;
-    netEvCell.format.font.name = "Calibri";
-    netEvCell.format.font.size = 9;
-    netEvCell.format.font.bold = true;
-    netEvCell.format.font.color = RENDER_TOKENS.edge;
-    netEvCell.format.horizontalAlignment = "Right";
+    styleTreeFormulaCell(childrenEvCell);
+    styleTreeFormulaCell(netEvCell, true);
   }
 }
 
@@ -417,23 +425,14 @@ function writeNodeCells(
 
   if (titleRow >= 0) {
     const titleRange = setRowBandValue(sheet, labelCol, titleRow, labelWidth, renderNode.title);
-    titleRange.format.fill.color = renderNode.isOptimal ? QUINTANA.limeTenue : QUINTANA.paper;
-    titleRange.format.font.name = "Calibri";
-    titleRange.format.font.size = 10;
-    titleRange.format.font.bold = true;
-    titleRange.format.font.color = renderNode.isOptimal ? QUINTANA.forest : QUINTANA.ink;
-    titleRange.format.horizontalAlignment = "Left";
+    styleTreeLabelCell(titleRange, renderNode.isOptimal);
   }
 
   const detailText = [renderNode.secondaryLines.join(" · "), renderNode.noteLines.join(" · ")]
     .filter((part) => part.length > 0)
     .join(" — ");
   const detailRange = setRowBandValue(sheet, labelCol, detailRow, labelWidth, detailText);
-  detailRange.format.fill.color = QUINTANA.paper;
-  detailRange.format.font.name = "Calibri";
-  detailRange.format.font.size = 8;
-  detailRange.format.font.color = QUINTANA.inkMuted;
-  detailRange.format.horizontalAlignment = "Left";
+  styleTreeDetailCell(detailRange);
 }
 
 /**
@@ -1010,56 +1009,9 @@ export async function renderToExcel(
         writeInlineCalculationCells(treeSheet, tree, layout, inlineCalcSheetMetadata);
         await context.sync();
 
-        // Secciones inferiores del documento. Cada una se ejecuta dentro de un
-        // try/catch + sync: si una falla, la siguiente igual se intenta y el
-        // documento queda parcialmente armado en lugar de morir entero.
-        // Cuando algo explota, el motivo queda en A3:A4 (writeRenderDebug).
-        let cursor = layout.maxRow + GRID.rowGap + 1;
-        const safeSection = async (name: string, fn: () => number | Promise<number>): Promise<void> => {
-          try {
-            const next = await fn();
-            cursor = next;
-            await context.sync();
-          } catch (error) {
-            const msg = error instanceof Error ? error.message : String(error);
-            writeRenderDebug(treeSheet, `Falló sección ${name}`, msg);
-            console.error(`[renderToExcel] sección "${name}" falló:`, error);
-            try {
-              await context.sync();
-            } catch {
-              // si el sync de debug también explota, seguimos
-            }
-          }
-        };
-
-        await safeSection("leyenda", async () => renderLegend(treeSheet, cursor + 1, totalCols));
-
-        await safeSection("recomendación", async () => {
-          const rootNode = tree.rootId ? tree.nodes[tree.rootId] : null;
-          const isCost = tree.metadata.mode === "minimize";
-          const rootLabel = isCost ? "Costo esperado del árbol" : "Valor esperado del árbol";
-          const recommended = renderModel.summary?.recommendedAction.replace(/^Elegir:\s*/, "") ?? "";
-          const headline = recommended
-            ? `Recomendación: ${recommended}`
-            : "Sin recomendación (el árbol todavía no tiene una decisión clara)";
-          const summaryValue = renderModel.summary?.rootValue ?? "";
-          const rootEv = rootNode?.expectedValue ?? null;
-          const detail = summaryValue
-            ? summaryValue
-            : rootEv !== null
-              ? `${rootLabel}: ${formatCurrencyAr(rootEv)}`
-              : "Completá el árbol para ver el resultado esperado.";
-          return renderRecommendationBox(treeSheet, cursor + 1, totalCols, headline, detail);
-        });
-
-        await safeSection("tabla de caminos", async () => {
-          const paths = enumeratePaths(tree);
-          return paths.length > 0
-            ? renderPathsTable(treeSheet, cursor, totalCols, tree, paths, inlineCalcSheetMetadata)
-            : cursor;
-        });
-
-        await safeSection("footer", async () => renderFooter(treeSheet, cursor + 1, totalCols));
+        // El output imprimible termina en el arbol: las cuentas auditables
+        // viven sobre el arbol, no en tablas auxiliares al pie.
+        const cursor = layout.maxRow + GRID.rowGap;
 
         applyPageSetup(treeSheet, totalCols, cursor);
 
