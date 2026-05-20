@@ -18,12 +18,12 @@ export const SHAPE_PREFIX = "DT_";
 export const GRID: GridProfile = {
   startRow: 7,
   startCol: 1,
-  // Compact branch-style renderer. With 5 levels this keeps the tree around
-  // columns A:O instead of expanding to A:AN like the previous wide grid.
+  // Branch-style renderer: each node block keeps one visual marker cell plus
+  // enough label/value cells to avoid text colliding with the geometry.
   nodeRows: 3,
-  nodeCols: 2,
+  nodeCols: 5,
   rowGap: 2,
-  colGap: 1,
+  colGap: 2,
 };
 
 export function resolveGridProfile(overrides?: Partial<GridProfile>): GridProfile {

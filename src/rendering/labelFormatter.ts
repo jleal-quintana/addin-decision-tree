@@ -25,7 +25,7 @@ export function formatPrimaryMetricLabel(tree: DecisionTreeData): string {
   return tree.metadata.mode === "minimize" ? "Costo esperado" : "Valor esperado";
 }
 
-export function formatTerminalMetricLabel(tree: DecisionTreeData): string {
+function formatTerminalMetricLabel(tree: DecisionTreeData): string {
   return tree.metadata.mode === "minimize" ? "Costo terminal" : "Resultado terminal";
 }
 
@@ -50,17 +50,13 @@ export function buildNodePrimaryValue(tree: DecisionTreeData, node: LayoutNode):
 export function buildNodeSecondaryLines(tree: DecisionTreeData, node: LayoutNode): string[] {
   const parts: string[] = [];
 
-  if (node.probability !== null && node.probability > 0) {
-    parts.push(`Prob. ${(node.probability * 100).toFixed(0)}%`);
-  }
+  // La probabilidad vive en la rama entrante; repetirla dentro del nodo hace
+  // dificil distinguir que numero describe la rama y cual describe el nodo.
   if (node.cost !== null && node.cost !== 0) {
     parts.push(`Costo ${formatCurrency(node.cost)}`);
   }
   if (node.time) {
     parts.push(node.time);
-  }
-  if (node.type === "end" && node.payoff !== null) {
-    parts.push(`${formatTerminalMetricLabel(tree)} ${formatCurrency(node.payoff)}`);
   }
 
   return parts
@@ -86,11 +82,14 @@ function formatNoteValue(value: unknown): string {
 }
 
 export function buildNodeNoteLines(node: LayoutNode): string[] {
-  return Object.entries(node.customFields ?? {})
-    .filter(([, value]) => value !== null && value !== undefined && value !== "")
-    .filter(([, value]) => !isDuplicateOfCost(value, node.cost))
-    .slice(0, RENDER_LIMITS.maxNoteLines)
-    .map(([key, value]) => truncate(`${key}: ${formatNoteValue(value)}`, RENDER_LIMITS.noteLineChars));
+  const lines: string[] = [];
+  for (const [key, value] of Object.entries(node.customFields ?? {})) {
+    if (value === null || value === undefined || value === "") continue;
+    if (isDuplicateOfCost(value, node.cost)) continue;
+    lines.push(truncate(`${key}: ${formatNoteValue(value)}`, RENDER_LIMITS.noteLineChars));
+    if (lines.length === RENDER_LIMITS.maxNoteLines) break;
+  }
+  return lines;
 }
 
 export function buildEdgeLabel(edge: LayoutEdge, childNode: LayoutNode | undefined): string {

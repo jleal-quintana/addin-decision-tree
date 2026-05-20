@@ -244,7 +244,7 @@ function createNodeMarker(
   // La información se escribe en celdas alrededor de la rama, como en VM Plan.
   const shapeRowHeight = SHAPE_ROW_HEIGHT;
   const size = Math.min(24, shapeRowHeight - 10, rect.width * 0.45);
-  const left = rect.left + (rect.width - size) / 2;
+  const left = rect.left + 4;
   const top = rect.top + (shapeRowHeight - size) / 2;
 
   marker.name = `${SHAPE_PREFIX}NODE_${node.id}`;
@@ -308,14 +308,17 @@ function writeInlineCalculationCells(
     const probCell = sheet.getCell(layoutNode.row, helperCol);
     probCell.values = [[node.probability ?? ""]];
     probCell.numberFormat = [["0%"]];
+    probCell.format.font.color = QUINTANA.paper;
 
     const costCell = sheet.getCell(layoutNode.row + 1, helperCol);
     costCell.values = [[node.cost ?? ""]];
     costCell.numberFormat = [["$#,##0"]];
+    costCell.format.font.color = QUINTANA.paper;
 
     const terminalCell = sheet.getCell(layoutNode.row + 2, helperCol);
     terminalCell.values = [[node.type === "end" ? node.payoff ?? 0 : ""]];
     terminalCell.numberFormat = [["$#,##0"]];
+    terminalCell.format.font.color = QUINTANA.paper;
   }
 
   for (const layoutNode of [...layout.nodes].reverse()) {
@@ -329,6 +332,8 @@ function writeInlineCalculationCells(
       childrenEvCell.values = [[""]];
       netEvCell.formulas = [[`=N(${sameSheetRef(layoutNode.col, layoutNode.row + 2)})${costOp}N(${sameSheetRef(layoutNode.col, layoutNode.row + 1)})`]];
       netEvCell.numberFormat = [["$#,##0"]];
+      childrenEvCell.format.font.color = QUINTANA.paper;
+      netEvCell.format.font.color = QUINTANA.paper;
       continue;
     }
 
@@ -353,6 +358,8 @@ function writeInlineCalculationCells(
     childrenEvCell.numberFormat = [["$#,##0"]];
     netEvCell.formulas = [[`=${ref.childrenEvAddress}${costOp}N(${sameSheetRef(layoutNode.col, layoutNode.row + 1)})`]];
     netEvCell.numberFormat = [["$#,##0"]];
+    childrenEvCell.format.font.color = QUINTANA.paper;
+    netEvCell.format.font.color = QUINTANA.paper;
   }
 }
 
@@ -374,12 +381,12 @@ function writeNodeCells(
   // Branch-style labels: el nodo queda limpio; título, valor y detalle viven
   // como celdas auditables cerca de la junta. Esto escala mejor para árboles
   // grandes y replica el lenguaje visual del Excel de referencia.
-  const labelCol = startCol + 1;
-  const labelWidth = Math.max(1, width);
+  const labelCol = startCol + 2;
+  const labelWidth = Math.max(1, width - 2);
   const isTerminal = renderNode.type === "end";
-  const titleRow = isTerminal ? layoutNode.row - 1 : layoutNode.row;
-  const valueRow = isTerminal ? layoutNode.row + 2 : layoutNode.row + 1;
-  const detailRow = isTerminal ? layoutNode.row + 3 : layoutNode.row + 2;
+  const titleRow = layoutNode.row;
+  const valueRow = layoutNode.row + 1;
+  const detailRow = layoutNode.row + 2;
 
   if (titleRow >= 0) {
     const titleRange = setRowBandValue(sheet, labelCol, titleRow, labelWidth, renderNode.title);
@@ -407,6 +414,7 @@ function writeNodeCells(
   } else {
     valueCell.values = [[""]];
   }
+  valueRange.numberFormat = [["$#,##0"]];
   valueRange.format.fill.color = QUINTANA.slateTenue;
   valueRange.format.font.name = "Calibri";
   valueRange.format.font.size = 9;
@@ -436,9 +444,11 @@ function addEdgeLines(
   fromRect: NodeRect,
   toRect: NodeRect
 ): Excel.Shape[] {
-  const beginLeft = fromRect.left + fromRect.width * 0.62;
+  const markerSize = Math.min(24, SHAPE_ROW_HEIGHT - 10, fromRect.width * 0.45);
+  const targetMarkerSize = Math.min(24, SHAPE_ROW_HEIGHT - 10, toRect.width * 0.45);
+  const beginLeft = fromRect.left + 4 + markerSize;
   const beginTop = fromRect.top + SHAPE_ROW_HEIGHT / 2;
-  const endLeft = toRect.left + toRect.width * 0.38;
+  const endLeft = toRect.left + 4 + targetMarkerSize / 2;
   const endTop = toRect.top + SHAPE_ROW_HEIGHT / 2;
   const horizontalStartLeft = Math.min(
     endLeft - 10,
