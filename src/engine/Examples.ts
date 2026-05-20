@@ -353,7 +353,7 @@ export function workoverExample(): DecisionTreeData {
       wo_root: {
         id: "wo_root",
         type: "decision",
-        label: "Hacer workover",
+        label: "Intervenir pozo?",
         payoff: null,
         cost: null,
         time: null,
@@ -368,7 +368,7 @@ export function workoverExample(): DecisionTreeData {
       wo_do: {
         id: "wo_do",
         type: "chance",
-        label: "Ejecutar workover",
+        label: "Hacer workover",
         payoff: null,
         cost: 150000,
         time: "45 dias",
@@ -378,12 +378,12 @@ export function workoverExample(): DecisionTreeData {
         childIds: ["wo_ok", "wo_fail"],
         probability: null,
         collapsed: false,
-        customFields: { CAPEX: 150000 },
+        customFields: { "Inversion inicial": 150000 },
       },
       wo_ok: {
         id: "wo_ok",
         type: "chance",
-        label: "Exito operativo",
+        label: "Resultado operativo",
         payoff: null,
         cost: null,
         time: null,
@@ -398,7 +398,7 @@ export function workoverExample(): DecisionTreeData {
       wo_high: {
         id: "wo_high",
         type: "end",
-        label: "Produccion alta",
+        label: "Alta produccion",
         payoff: 80000,
         cost: null,
         time: null,
@@ -428,7 +428,7 @@ export function workoverExample(): DecisionTreeData {
       wo_fail: {
         id: "wo_fail",
         type: "decision",
-        label: "Fracaso",
+        label: "Ante falla operativa",
         payoff: null,
         cost: null,
         time: null,

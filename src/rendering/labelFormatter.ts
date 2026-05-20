@@ -30,7 +30,13 @@ function formatTerminalMetricLabel(tree: DecisionTreeData): string {
 }
 
 export function buildNodeTitle(node: LayoutNode): string {
-  return truncate(node.label, RENDER_LIMITS.titleChars);
+  const role =
+    node.type === "decision"
+      ? "Decision"
+      : node.type === "chance"
+        ? "Evento"
+        : "Resultado";
+  return truncate(`${role}: ${node.label}`, RENDER_LIMITS.titleChars);
 }
 
 export function buildNodePrimaryValue(tree: DecisionTreeData, node: LayoutNode): string {

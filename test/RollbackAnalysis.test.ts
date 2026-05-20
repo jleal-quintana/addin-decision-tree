@@ -22,6 +22,6 @@ describe("RollbackAnalysis", () => {
 
     expect(getOptimalChildId(tree, "wo_root", evMap)).toBe("wo_do");
     expect(strategy).toContain("Costo esperado");
-    expect(strategy).toContain("Ejecutar workover");
+    expect(strategy).toContain("Hacer workover");
   });
 });

@@ -276,7 +276,7 @@ function createNodeMarker(
 
   // Branch-style: el nodo es una junta visual chica, no una caja con texto.
   // La información se escribe en celdas alrededor de la rama, como en VM Plan.
-  const shapeRowHeight = SHAPE_ROW_HEIGHT;
+  const shapeRowHeight = rect.height;
   const size = Math.min(24, shapeRowHeight - 10, rect.width * 0.45);
   const left = rect.left + 4;
   const top = rect.top + (shapeRowHeight - size) / 2;
@@ -446,12 +446,12 @@ function addEdgeLines(
   fromRect: NodeRect,
   toRect: NodeRect
 ): Excel.Shape[] {
-  const markerSize = Math.min(24, SHAPE_ROW_HEIGHT - 10, fromRect.width * 0.45);
-  const targetMarkerSize = Math.min(24, SHAPE_ROW_HEIGHT - 10, toRect.width * 0.45);
+  const markerSize = Math.min(24, fromRect.height - 10, fromRect.width * 0.45);
+  const targetMarkerSize = Math.min(24, toRect.height - 10, toRect.width * 0.45);
   const beginLeft = fromRect.left + 4 + markerSize;
-  const beginTop = fromRect.top + SHAPE_ROW_HEIGHT / 2;
+  const beginTop = fromRect.top + fromRect.height / 2;
   const endLeft = toRect.left + 4 + targetMarkerSize / 2;
-  const endTop = toRect.top + SHAPE_ROW_HEIGHT / 2;
+  const endTop = toRect.top + toRect.height / 2;
   const horizontalStartLeft = Math.min(
     endLeft - 10,
     beginLeft + Math.max(18, Math.min(42, (endLeft - beginLeft) * 0.28))
@@ -856,10 +856,6 @@ export async function renderToExcel(
         treeSheet.showGridlines = false;
 
         // Fila del shape más alta para que el polígono entre cómodo.
-        for (const node of layout.nodes) {
-          const shapeRowAddr = rangeAddr(node.col, node.row, 1, 1);
-          treeSheet.getRange(shapeRowAddr).format.rowHeight = SHAPE_ROW_HEIGHT;
-        }
 
         renderTitle(treeSheet, tree, totalCols);
         await context.sync();

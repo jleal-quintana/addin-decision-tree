@@ -15,7 +15,7 @@ export const PREVIEW_CELL = {
 };
 
 export const RENDER_LIMITS = {
-  titleChars: 24,
+  titleChars: 36,
   secondaryLineChars: 28,
   noteLineChars: 30,
   maxSecondaryLines: 2,
