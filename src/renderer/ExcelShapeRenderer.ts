@@ -275,8 +275,8 @@ function buildInlineCalculationMetadata(
 
   for (let index = 0; index < layout.nodes.length; index++) {
     const node = layout.nodes[index];
-    const helperCol = node.col;
-    const valueCol = node.col + 1;
+    const helperCol = node.col + 1;
+    const valueCol = node.col + 2;
     metadata.nodeRefs[node.id] = {
       rowIndex: index,
       sheetRow: node.row,
@@ -298,42 +298,62 @@ function writeInlineCalculationCells(
   metadata: CalcSheetMetadata
 ): void {
   const costOp = tree.metadata.mode === "minimize" ? "+" : "-";
+  const evLabel = tree.metadata.mode === "minimize" ? "Costo EV=" : "Valor EV=";
 
   for (const layoutNode of layout.nodes) {
     const node = tree.nodes[layoutNode.id];
     if (!node) continue;
-    const helperCol = layoutNode.col;
-    const valueCol = layoutNode.col + 1;
+    const helperCol = layoutNode.col + 1;
+    const valueCol = layoutNode.col + 2;
 
     const probCell = sheet.getCell(layoutNode.row, helperCol);
     probCell.values = [[node.probability ?? ""]];
-    probCell.numberFormat = [["0%"]];
-    probCell.format.font.color = QUINTANA.paper;
+    probCell.numberFormat = [['"p="0%']];
+    probCell.format.fill.color = node.probability !== null ? QUINTANA.cream : QUINTANA.paper;
+    probCell.format.font.name = "Calibri";
+    probCell.format.font.size = 8;
+    probCell.format.font.color = QUINTANA.inkMuted;
+    probCell.format.horizontalAlignment = "Right";
 
     const costCell = sheet.getCell(layoutNode.row + 1, helperCol);
     costCell.values = [[node.cost ?? ""]];
-    costCell.numberFormat = [["$#,##0"]];
-    costCell.format.font.color = QUINTANA.paper;
+    costCell.numberFormat = [['"Costo="$#,##0']];
+    costCell.format.fill.color = node.cost !== null && node.cost !== 0 ? QUINTANA.cream : QUINTANA.paper;
+    costCell.format.font.name = "Calibri";
+    costCell.format.font.size = 8;
+    costCell.format.font.color = QUINTANA.inkMuted;
+    costCell.format.horizontalAlignment = "Right";
 
     const terminalCell = sheet.getCell(layoutNode.row + 2, helperCol);
     terminalCell.values = [[node.type === "end" ? node.payoff ?? 0 : ""]];
-    terminalCell.numberFormat = [["$#,##0"]];
-    terminalCell.format.font.color = QUINTANA.paper;
+    terminalCell.numberFormat = [['"Terminal="$#,##0']];
+    terminalCell.format.fill.color = node.type === "end" ? QUINTANA.cream : QUINTANA.paper;
+    terminalCell.format.font.name = "Calibri";
+    terminalCell.format.font.size = 8;
+    terminalCell.format.font.color = QUINTANA.inkMuted;
+    terminalCell.format.horizontalAlignment = "Right";
   }
 
   for (const layoutNode of [...layout.nodes].reverse()) {
     const node = tree.nodes[layoutNode.id];
     if (!node) continue;
     const ref = metadata.nodeRefs[node.id];
-    const childrenEvCell = sheet.getRange(ref.childrenEvAddress.split("!").pop() ?? cellAddr(layoutNode.col + 1, layoutNode.row + 2));
-    const netEvCell = sheet.getRange(ref.netEvAddress.split("!").pop() ?? cellAddr(layoutNode.col + 1, layoutNode.row + 1));
+    const helperCol = layoutNode.col + 1;
+    const valueCol = layoutNode.col + 2;
+    const childrenEvCell = sheet.getRange(ref.childrenEvAddress.split("!").pop() ?? cellAddr(valueCol, layoutNode.row + 2));
+    const netEvCell = sheet.getRange(ref.netEvAddress.split("!").pop() ?? cellAddr(valueCol, layoutNode.row + 1));
 
     if (node.type === "end" || node.childIds.length === 0) {
       childrenEvCell.values = [[""]];
-      netEvCell.formulas = [[`=N(${sameSheetRef(layoutNode.col, layoutNode.row + 2)})${costOp}N(${sameSheetRef(layoutNode.col, layoutNode.row + 1)})`]];
-      netEvCell.numberFormat = [["$#,##0"]];
-      childrenEvCell.format.font.color = QUINTANA.paper;
-      netEvCell.format.font.color = QUINTANA.paper;
+      netEvCell.formulas = [[`=N(${sameSheetRef(helperCol, layoutNode.row + 2)})${costOp}N(${sameSheetRef(helperCol, layoutNode.row + 1)})`]];
+      netEvCell.numberFormat = [[`"${evLabel}"$#,##0`]];
+      childrenEvCell.format.fill.color = QUINTANA.paper;
+      netEvCell.format.fill.color = QUINTANA.slateTenue;
+      netEvCell.format.font.name = "Calibri";
+      netEvCell.format.font.size = 9;
+      netEvCell.format.font.bold = true;
+      netEvCell.format.font.color = RENDER_TOKENS.edge;
+      netEvCell.format.horizontalAlignment = "Right";
       continue;
     }
 
@@ -343,7 +363,7 @@ function writeInlineCalculationCells(
           const childLayout = layout.nodes.find((item) => item.id === childId);
           const childRef = metadata.nodeRefs[childId];
           if (!childLayout || !childRef) return null;
-          return `${sameSheetRef(childLayout.col, childLayout.row)}*${childRef.netEvAddress}`;
+          return `${childRef.probabilityAddress}*${childRef.netEvAddress}`;
         })
         .filter((term): term is string => Boolean(term));
       childrenEvCell.formulas = [[terms.length > 0 ? `=SUM(${terms.join(",")})` : "=0"]];
@@ -355,11 +375,20 @@ function writeInlineCalculationCells(
       childrenEvCell.formulas = [[childRefs.length > 0 ? `=${fn}(${childRefs.join(",")})` : "=0"]];
     }
 
-    childrenEvCell.numberFormat = [["$#,##0"]];
-    netEvCell.formulas = [[`=${ref.childrenEvAddress}${costOp}N(${sameSheetRef(layoutNode.col, layoutNode.row + 1)})`]];
-    netEvCell.numberFormat = [["$#,##0"]];
-    childrenEvCell.format.font.color = QUINTANA.paper;
-    netEvCell.format.font.color = QUINTANA.paper;
+    childrenEvCell.numberFormat = [['"Hijos="$#,##0']];
+    netEvCell.formulas = [[`=${ref.childrenEvAddress}${costOp}N(${sameSheetRef(helperCol, layoutNode.row + 1)})`]];
+    netEvCell.numberFormat = [[`"${evLabel}"$#,##0`]];
+    childrenEvCell.format.fill.color = QUINTANA.cream;
+    childrenEvCell.format.font.name = "Calibri";
+    childrenEvCell.format.font.size = 8;
+    childrenEvCell.format.font.color = QUINTANA.inkMuted;
+    childrenEvCell.format.horizontalAlignment = "Right";
+    netEvCell.format.fill.color = QUINTANA.slateTenue;
+    netEvCell.format.font.name = "Calibri";
+    netEvCell.format.font.size = 9;
+    netEvCell.format.font.bold = true;
+    netEvCell.format.font.color = RENDER_TOKENS.edge;
+    netEvCell.format.horizontalAlignment = "Right";
   }
 }
 
@@ -381,11 +410,9 @@ function writeNodeCells(
   // Branch-style labels: el nodo queda limpio; título, valor y detalle viven
   // como celdas auditables cerca de la junta. Esto escala mejor para árboles
   // grandes y replica el lenguaje visual del Excel de referencia.
-  const labelCol = startCol + 2;
-  const labelWidth = Math.max(1, width - 2);
-  const isTerminal = renderNode.type === "end";
+  const labelCol = startCol + 3;
+  const labelWidth = Math.max(1, width - 3);
   const titleRow = layoutNode.row;
-  const valueRow = layoutNode.row + 1;
   const detailRow = layoutNode.row + 2;
 
   if (titleRow >= 0) {
@@ -397,30 +424,6 @@ function writeNodeCells(
     titleRange.format.font.color = renderNode.isOptimal ? QUINTANA.forest : QUINTANA.ink;
     titleRange.format.horizontalAlignment = "Left";
   }
-
-  const valueRange = sheet.getRange(rangeAddr(labelCol, valueRow, labelWidth, 1));
-  valueRange.unmerge();
-  if (labelWidth > 1) valueRange.merge();
-  const valueCell = sheet.getCell(valueRow, labelCol);
-  const nodeRef = calcSheetMetadata.nodeRefs[layoutNode.id];
-  const node = tree.nodes[layoutNode.id];
-  if (nodeRef && node) {
-    const addr = node.type === "end" ? nodeRef.terminalValueAddress : nodeRef.netEvAddress;
-    valueCell.formulas = [[`=${addr}`]];
-    valueCell.numberFormat = [["$#,##0"]];
-  } else if (layoutNode.expectedValue !== null) {
-    valueCell.values = [[layoutNode.expectedValue]];
-    valueCell.numberFormat = [["$#,##0"]];
-  } else {
-    valueCell.values = [[""]];
-  }
-  valueRange.numberFormat = [["$#,##0"]];
-  valueRange.format.fill.color = QUINTANA.slateTenue;
-  valueRange.format.font.name = "Calibri";
-  valueRange.format.font.size = 9;
-  valueRange.format.font.bold = true;
-  valueRange.format.font.color = RENDER_TOKENS.edge;
-  valueRange.format.horizontalAlignment = "Right";
 
   const detailText = [renderNode.secondaryLines.join(" · "), renderNode.noteLines.join(" · ")]
     .filter((part) => part.length > 0)

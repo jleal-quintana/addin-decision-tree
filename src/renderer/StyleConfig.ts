@@ -21,7 +21,7 @@ export const GRID: GridProfile = {
   // Branch-style renderer: each node block keeps one visual marker cell plus
   // enough label/value cells to avoid text colliding with the geometry.
   nodeRows: 3,
-  nodeCols: 5,
+  nodeCols: 6,
   rowGap: 2,
   colGap: 2,
 };

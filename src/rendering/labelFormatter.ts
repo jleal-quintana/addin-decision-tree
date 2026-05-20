@@ -97,9 +97,8 @@ export function buildEdgeLabel(edge: LayoutEdge, childNode: LayoutNode | undefin
   const childCost = childNode?.cost;
   const childTime = childNode?.time;
 
-  if (edge.probability !== null && edge.probability > 0) {
-    lines.push(`${(edge.probability * 100).toFixed(0)}%`);
-  }
+  // La probabilidad queda como input visible del nodo hijo ("p=...") para que
+  // la formula de EV pueda referenciar esa misma celda con F2.
   if (childCost !== null && childCost !== undefined && childCost !== 0) {
     lines.push(`Costo ${formatCurrency(childCost)}`);
   }
