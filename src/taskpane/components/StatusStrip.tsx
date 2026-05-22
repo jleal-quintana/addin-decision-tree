@@ -108,17 +108,20 @@ export function StatusStrip({ issues }: StatusStripProps) {
       <span className="status-strip__text">{statusText}</span>
       <span className="status-strip__spacer" />
       <div className="status-strip__counts" aria-label="Conteo de nodos">
-        <span className="status-strip__count" title="Decisiones">
+        <span className="status-strip__count" title={`${counts.decision} ${counts.decision === 1 ? "decisión" : "decisiones"}`}>
           <ShapeGlyph type="decision" />
           <strong>{counts.decision}</strong>
+          <span className="status-strip__count-label">D</span>
         </span>
-        <span className="status-strip__count" title="Incertidumbres">
+        <span className="status-strip__count" title={`${counts.chance} ${counts.chance === 1 ? "incertidumbre" : "incertidumbres"}`}>
           <ShapeGlyph type="chance" />
           <strong>{counts.chance}</strong>
+          <span className="status-strip__count-label">I</span>
         </span>
-        <span className="status-strip__count" title="Resultados finales">
+        <span className="status-strip__count" title={`${counts.end} ${counts.end === 1 ? "resultado final" : "resultados finales"}`}>
           <ShapeGlyph type="end" />
           <strong>{counts.end}</strong>
+          <span className="status-strip__count-label">R</span>
         </span>
       </div>
     </div>

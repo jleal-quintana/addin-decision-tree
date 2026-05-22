@@ -331,6 +331,12 @@ body {
 .status-strip__glyph {
   flex-shrink: 0;
 }
+.status-strip__count-label {
+  font-size: 10px;
+  color: var(--text-secondary);
+  font-weight: 600;
+  letter-spacing: 0.5px;
+}
 
 /* ============================================================
    Tree Minimap — vista compacta de la estructura del árbol
@@ -451,8 +457,56 @@ body {
   width: 16px;
   height: 16px;
 }
+.validation-issue--warn .validation-issue__icon {
+  color: var(--warning);
+}
 .validation-panel.warn .validation-issue__icon {
   color: var(--warning);
+}
+
+.validation-group {
+  display: grid;
+  gap: 4px;
+  margin-top: 6px;
+}
+.validation-group:first-child {
+  margin-top: 0;
+}
+
+.validation-group__heading {
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+  background: transparent;
+  border: none;
+  padding: 2px 0;
+  color: var(--text-secondary);
+  font-family: inherit;
+  font-size: 11px;
+  font-weight: 600;
+  cursor: pointer;
+  text-align: left;
+}
+.validation-group__heading:hover {
+  color: var(--qe-bosque);
+}
+.validation-group__heading:focus-visible {
+  outline: 2px solid var(--qe-azul);
+  outline-offset: 2px;
+  border-radius: 4px;
+}
+.validation-group__count {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  min-width: 16px;
+  height: 16px;
+  padding: 0 4px;
+  border-radius: 8px;
+  background: var(--bg-soft);
+  color: var(--text-secondary);
+  font-size: 10px;
+  font-weight: 700;
 }
 
 .validation-issue__msg {
