@@ -13,7 +13,7 @@ import { TreePreview } from "./components/TreePreview";
 import { ValidationPanel } from "./components/ValidationPanel";
 import { useTree } from "./context/TreeContext";
 import { useDrawTree } from "./hooks/useDrawTree";
-import { buildValidationIssues } from "./utils/validationIssues";
+import { buildValidationIssues, groupIssuesByNode } from "./utils/validationIssues";
 
 function formatRelativeUpdate(iso: string): string {
   const updated = new Date(iso).getTime();
@@ -99,6 +99,7 @@ function AppInner() {
     () => (state.tree.rootId ? buildValidationIssues(state.tree) : []),
     [state.tree]
   );
+  const issuesByNode = useMemo(() => groupIssuesByNode(validationIssues), [validationIssues]);
 
   const isCost = state.tree.metadata.mode === "minimize";
   const caseName = state.tree.metadata.name ?? "";
@@ -278,7 +279,7 @@ function AppInner() {
           <>
             {validationIssues.length > 0 && <ValidationPanel issues={validationIssues} />}
             {state.tree.rootId && <TreeMinimap />}
-            <TreeBuilder drawApi={drawApi} />
+            <TreeBuilder drawApi={drawApi} issuesByNode={issuesByNode} />
             {state.selectedNodeId && <NodeEditor key={state.selectedNodeId} />}
             <TreePreview />
           </>

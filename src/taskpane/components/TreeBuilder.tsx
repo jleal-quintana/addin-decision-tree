@@ -8,6 +8,7 @@ import {
   vacaMuertaDevelopmentExample,
 } from "../../engine/Examples";
 import type { DrawTreeApi } from "../hooks/useDrawTree";
+import type { NodeIssueSummary } from "../utils/validationIssues";
 import { ConfirmDialog } from "./ConfirmDialog";
 
 function countSubtree(nodes: Record<string, TreeNode>, rootId: string): number {
@@ -22,6 +23,7 @@ function countSubtree(nodes: Record<string, TreeNode>, rootId: string): number {
 
 interface TreeBuilderProps {
   drawApi?: DrawTreeApi;
+  issuesByNode?: Map<string, NodeIssueSummary>;
 }
 
 const NodeBadge = memo(function NodeBadge({ type, isOptimal }: { type: NodeType; isOptimal?: boolean }) {
@@ -52,12 +54,21 @@ const NodeBadge = memo(function NodeBadge({ type, isOptimal }: { type: NodeType;
   );
 });
 
-function NodeItem({ node, depth }: { node: TreeNode; depth: number }) {
+function NodeItem({
+  node,
+  depth,
+  issuesByNode,
+}: {
+  node: TreeNode;
+  depth: number;
+  issuesByNode?: Map<string, NodeIssueSummary>;
+}) {
   const { state, dispatch } = useTree();
   const tree = state.tree.nodes;
   const isSelected = state.selectedNodeId === node.id;
   const parentNode = node.parentId ? tree[node.parentId] : null;
   const [showDeleteConfirm, setShowDeleteConfirm] = useState(false);
+  const issueSummary = issuesByNode?.get(node.id);
 
   const handleSelect = useCallback(() => {
     dispatch({ type: "SELECT_NODE", nodeId: node.id });
@@ -125,15 +136,23 @@ function NodeItem({ node, depth }: { node: TreeNode; depth: number }) {
     <>
       <div
         className={`node-item ${isSelected ? "selected" : ""} ${node.isOptimal ? "optimal" : ""}`}
+        data-node-id={node.id}
         onClick={handleSelect}
         onKeyDown={handleSelectKeyDown}
         role="button"
         tabIndex={0}
         aria-pressed={isSelected}
-        aria-label={`${typeName}: ${node.label}`}
+        aria-label={`${typeName}: ${node.label}${issueSummary ? `, ${issueSummary.count} ${issueSummary.count === 1 ? "problema" : "problemas"}` : ""}`}
         style={{ paddingLeft: 10 + depth * 18 }}
       >
         <NodeBadge type={node.type} isOptimal={node.isOptimal} />
+        {issueSummary && (
+          <span
+            className={`node-issue-dot node-issue-dot--${issueSummary.worstSeverity}`}
+            aria-hidden="true"
+            title={`${issueSummary.count} ${issueSummary.count === 1 ? "problema" : "problemas"} en este nodo`}
+          />
+        )}
         <span className="node-label">
           {branchLabel && <span className="branch-pill">{branchLabel}</span>}
           {node.label}
@@ -212,7 +231,7 @@ function NodeItem({ node, depth }: { node: TreeNode; depth: number }) {
       </div>
       {node.childIds.map((childId) => {
         const child = tree[childId];
-        return child ? <NodeItem key={childId} node={child} depth={depth + 1} /> : null;
+        return child ? <NodeItem key={childId} node={child} depth={depth + 1} issuesByNode={issuesByNode} /> : null;
       })}
 
       <ConfirmDialog
@@ -235,7 +254,7 @@ function NodeItem({ node, depth }: { node: TreeNode; depth: number }) {
   );
 }
 
-export function TreeBuilder({ drawApi }: TreeBuilderProps = {}) {
+export function TreeBuilder({ drawApi, issuesByNode }: TreeBuilderProps = {}) {
   const { state, dispatch } = useTree();
   const { tree } = state;
   const loading = drawApi?.drawing ?? false;
@@ -366,7 +385,7 @@ export function TreeBuilder({ drawApi }: TreeBuilderProps = {}) {
 
   return (
     <div className="node-list">
-      <NodeItem node={rootNode} depth={0} />
+      <NodeItem node={rootNode} depth={0} issuesByNode={issuesByNode} />
     </div>
   );
 }

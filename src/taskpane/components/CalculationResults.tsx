@@ -1,6 +1,7 @@
 import React, { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import { enumeratePaths } from "../../engine/PathEnumeration";
 import { useTree } from "../context/TreeContext";
+import { focusNodeInTree } from "../utils/focusNode";
 
 function formatPctInput(prob: number): string {
   const pct = prob * 100;
@@ -85,16 +86,25 @@ export function CalculationResults() {
     : null;
 
   // Primera rama elegida: primer nodo del camino óptimo cuyo padre sea una decisión.
-  const recommendedAction = (() => {
-    if (!optimalPath) return "";
+  const { recommendedAction, recommendedActionId } = useMemo(() => {
+    if (!optimalPath) return { recommendedAction: "", recommendedActionId: null as string | null };
     for (const id of optimalPath.ids) {
       const node = tree.nodes[id];
       if (!node?.parentId) continue;
       const parent = tree.nodes[node.parentId];
-      if (parent?.type === "decision") return node.branchLabel || node.label;
+      if (parent?.type === "decision") {
+        return { recommendedAction: node.branchLabel || node.label, recommendedActionId: id };
+      }
     }
-    return "";
-  })();
+    return { recommendedAction: "", recommendedActionId: null };
+  }, [optimalPath, tree.nodes]);
+
+  const handleFocusNode = useCallback(
+    (nodeId: string) => {
+      focusNodeInTree(dispatch, nodeId);
+    },
+    [dispatch]
+  );
 
   // Nodos chance = "supuestos" (DESIGN.md §4.3): probabilidades editables.
   const assumptions = useMemo(() => {
@@ -156,6 +166,18 @@ export function CalculationResults() {
             </span>
           )}
         </div>
+        {recommendedActionId && (
+          <button
+            type="button"
+            className="reco-jump"
+            onClick={() => handleFocusNode(recommendedActionId)}
+          >
+            Ver en el árbol
+            <svg width="12" height="12" viewBox="0 0 12 12" fill="none" aria-hidden="true">
+              <path d="M4 2l4 4-4 4" stroke="currentColor" strokeWidth="1.5" strokeLinecap="round" strokeLinejoin="round" />
+            </svg>
+          </button>
+        )}
       </div>
 
       {/* 2. Tabla de caminos (DESIGN.md §4.3 punto 2) */}
@@ -170,24 +192,43 @@ export function CalculationResults() {
                   <th style={{ textAlign: "right" }}>Prob.</th>
                   <th style={{ textAlign: "right" }}>{rootLabel}</th>
                   <th style={{ textAlign: "right" }}>Vs recomendado</th>
+                  <th aria-label="Ir al nodo" />
                 </tr>
               </thead>
               <tbody>
-                {paths.map((path) => (
-                  <tr key={path.ids.join("-")} className={path.isOptimal ? "optimal" : ""}>
-                    <td>
-                      {path.isOptimal && <span className="reco-dot" aria-label="Recomendado">●</span>}
-                      {path.label}
-                    </td>
-                    <td style={{ textAlign: "right" }}>{formatPercent(path.probability)}</td>
-                    <td style={{ textAlign: "right", fontFamily: "Montserrat, sans-serif", fontWeight: 600 }}>
-                      {formatCurrency(path.value)}
-                    </td>
-                    <td style={{ textAlign: "right" }}>
-                      {path.isOptimal ? "—" : formatCurrency(path.diff)}
-                    </td>
-                  </tr>
-                ))}
+                {paths.map((path) => {
+                  const leafId = path.ids[path.ids.length - 1];
+                  return (
+                    <tr key={path.ids.join("-")} className={path.isOptimal ? "optimal" : ""}>
+                      <td>
+                        {path.isOptimal && <span className="reco-dot" aria-label="Recomendado">●</span>}
+                        {path.label}
+                      </td>
+                      <td style={{ textAlign: "right" }}>{formatPercent(path.probability)}</td>
+                      <td style={{ textAlign: "right", fontFamily: "Montserrat, sans-serif", fontWeight: 600 }}>
+                        {formatCurrency(path.value)}
+                      </td>
+                      <td style={{ textAlign: "right" }}>
+                        {path.isOptimal ? "—" : formatCurrency(path.diff)}
+                      </td>
+                      <td style={{ textAlign: "right" }}>
+                        {leafId && (
+                          <button
+                            type="button"
+                            className="path-jump"
+                            onClick={() => handleFocusNode(leafId)}
+                            aria-label={`Ver "${path.label}" en el árbol`}
+                            title="Ver en el árbol"
+                          >
+                            <svg width="12" height="12" viewBox="0 0 12 12" fill="none" aria-hidden="true">
+                              <path d="M4 2l4 4-4 4" stroke="currentColor" strokeWidth="1.5" strokeLinecap="round" strokeLinejoin="round" />
+                            </svg>
+                          </button>
+                        )}
+                      </td>
+                    </tr>
+                  );
+                })}
               </tbody>
             </table>
           </div>

@@ -185,6 +185,26 @@ export function buildValidationIssues(tree: DecisionTreeData): RichIssue[] {
   return issues;
 }
 
+export interface NodeIssueSummary {
+  worstSeverity: IssueSeverity;
+  count: number;
+}
+
+export function groupIssuesByNode(issues: RichIssue[]): Map<string, NodeIssueSummary> {
+  const map = new Map<string, NodeIssueSummary>();
+  for (const issue of issues) {
+    if (!issue.nodeId) continue;
+    const current = map.get(issue.nodeId);
+    if (!current) {
+      map.set(issue.nodeId, { worstSeverity: issue.severity, count: 1 });
+    } else {
+      current.count += 1;
+      if (issue.severity === "error") current.worstSeverity = "error";
+    }
+  }
+  return map;
+}
+
 export function countNodesByType(tree: DecisionTreeData): { decision: number; chance: number; end: number; total: number } {
   let decision = 0;
   let chance = 0;

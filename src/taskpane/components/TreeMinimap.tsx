@@ -2,6 +2,7 @@ import React, { useCallback, useMemo } from "react";
 import { useTree } from "../context/TreeContext";
 import { NodeType } from "../../models/types";
 import { layoutTreeCompact } from "../utils/treeLayout";
+import { focusNodeInTree } from "../utils/focusNode";
 
 interface MinimapShapeProps {
   x: number;
@@ -64,7 +65,7 @@ export function TreeMinimap() {
 
   const handleSelect = useCallback(
     (nodeId: string) => {
-      dispatch({ type: "SELECT_NODE", nodeId });
+      focusNodeInTree(dispatch, nodeId);
     },
     [dispatch]
   );
