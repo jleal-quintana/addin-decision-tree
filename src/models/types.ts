@@ -4,6 +4,7 @@ export interface TreeNode {
   id: string;
   type: NodeType;
   label: string;
+  branchLabel?: string | null;
   payoff: number | null;
   cost: number | null;
   time: string | null;
@@ -22,7 +23,7 @@ export interface DecisionTreeData {
   metadata: TreeMetadata;
 }
 
-export interface TreeMetadata {
+interface TreeMetadata {
   name: string;
   createdAt: string;
   updatedAt: string;
@@ -38,6 +39,7 @@ export interface LayoutNode {
   calcRow: number | null;
   type: NodeType;
   label: string;
+  branchLabel: string | null;
   expectedValue: number | null;
   payoff: number | null;
   cost: number | null;
@@ -76,7 +78,7 @@ export interface ValidationError {
   message: string;
 }
 
-export interface CalcSheetNodeRef {
+interface CalcSheetNodeRef {
   rowIndex: number;
   sheetRow: number;
   probabilityAddress: string;
@@ -109,7 +111,8 @@ export interface SwitchPoint {
 export type TreeAction =
   | { type: "ADD_NODE"; parentId: string | null; nodeType: NodeType; label: string }
   | { type: "REMOVE_NODE"; nodeId: string }
-  | { type: "UPDATE_NODE"; nodeId: string; updates: Partial<Pick<TreeNode, "label" | "type" | "payoff" | "probability" | "cost" | "time" | "customFields">> }
+  | { type: "UPDATE_NODE"; nodeId: string; updates: Partial<Pick<TreeNode, "label" | "branchLabel" | "type" | "payoff" | "probability" | "cost" | "time" | "customFields">> }
+  | { type: "INSERT_INTERMEDIATE_NODE"; nodeId: string; nodeType: Exclude<NodeType, "end">; label: string }
   | { type: "SET_TREE"; data: DecisionTreeData }
   | { type: "CLEAR_TREE"; mode?: "maximize" | "minimize" }
   | { type: "SET_EXPECTED_VALUES"; values: Record<string, number | null>; optimalPath: string[] }
@@ -136,14 +139,14 @@ export interface RenderNodeContent {
   isLeaf: boolean;
 }
 
-export interface RenderEdgeContent {
+interface RenderEdgeContent {
   fromId: string;
   toId: string;
   label: string;
   isOptimal: boolean;
 }
 
-export interface RenderSummary {
+interface RenderSummary {
   title: string;
   rootValue: string;
   recommendedAction: string;

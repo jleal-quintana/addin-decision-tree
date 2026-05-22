@@ -1,4 +1,4 @@
-import React, { useCallback, useEffect, useMemo, useState } from "react";
+import React, { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import { enumeratePaths } from "../../engine/PathEnumeration";
 import { useTree } from "../context/TreeContext";
 
@@ -16,13 +16,13 @@ interface AssumptionInputProps {
 
 function AssumptionInput({ nodeId, nodeLabel, probability, onCommit }: AssumptionInputProps) {
   const [draft, setDraft] = useState<string>(() => formatPctInput(probability));
-  const [focused, setFocused] = useState(false);
+  const focusedRef = useRef(false);
 
   // Sincronizar cuando el valor cambia desde fuera (ej. otra asunción recalcula)
   // pero NO mientras el usuario está tipeando en este input.
   useEffect(() => {
-    if (!focused) setDraft(formatPctInput(probability));
-  }, [probability, focused]);
+    if (!focusedRef.current) setDraft(formatPctInput(probability));
+  }, [probability]);
 
   return (
     <input
@@ -30,9 +30,11 @@ function AssumptionInput({ nodeId, nodeLabel, probability, onCommit }: Assumptio
       inputMode="decimal"
       value={draft}
       onChange={(e) => setDraft(e.target.value)}
-      onFocus={() => setFocused(true)}
+      onFocus={() => {
+        focusedRef.current = true;
+      }}
       onBlur={() => {
-        setFocused(false);
+        focusedRef.current = false;
         onCommit(nodeId, draft);
       }}
       onKeyDown={(e) => {
@@ -89,7 +91,7 @@ export function CalculationResults() {
       const node = tree.nodes[id];
       if (!node?.parentId) continue;
       const parent = tree.nodes[node.parentId];
-      if (parent?.type === "decision") return node.label;
+      if (parent?.type === "decision") return node.branchLabel || node.label;
     }
     return "";
   })();
@@ -213,7 +215,7 @@ export function CalculationResults() {
                 return (
                   <div key={node.id} className="assumption-row">
                     <div className="assumption-label">
-                      <div className="assumption-node">{node.label}</div>
+                      <div className="assumption-node">{node.branchLabel || node.label}</div>
                       {parent && <div className="assumption-parent">en {parent.label}</div>}
                     </div>
                     <div className="assumption-input">

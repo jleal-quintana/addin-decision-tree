@@ -103,8 +103,15 @@ export function buildEdgeLabel(edge: LayoutEdge, childNode: LayoutNode | undefin
   const childCost = childNode?.cost;
   const childTime = childNode?.time;
 
-  // La probabilidad queda como input visible del nodo hijo ("p=...") para que
-  // la formula de EV pueda referenciar esa misma celda con F2.
+  const branchText = edge.label?.trim();
+  if (branchText) {
+    const probabilityText =
+      edge.probability !== null && edge.probability !== undefined
+        ? `${(edge.probability * 100).toLocaleString("es-AR", { maximumFractionDigits: 1 })}%`
+        : "";
+    lines.push([branchText, probabilityText].filter(Boolean).join(" · "));
+  }
+
   if (childCost !== null && childCost !== undefined && childCost !== 0) {
     lines.push(`Costo ${formatCurrency(childCost)}`);
   }

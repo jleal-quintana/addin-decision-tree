@@ -1,6 +1,6 @@
-import React, { createContext, useContext, useReducer, ReactNode } from "react";
+import React, { createContext, use, useReducer, ReactNode } from "react";
 import { DecisionTreeData, TreeAction, TreeNode } from "../../models/types";
-import { addNode, createEmptyTree, removeNode, updateNode, validate } from "../../models/DecisionTree";
+import { addNode, createEmptyTree, insertIntermediateNode, removeNode, updateNode, validate } from "../../models/DecisionTree";
 import { calculateExpectedValues } from "../../engine/ExpectedValueCalculator";
 import { findOptimalPath } from "../../engine/RollbackAnalysis";
 
@@ -35,12 +35,13 @@ function autoCalculate(tree: DecisionTreeData): DecisionTreeData {
   }
   const evMap = calculateExpectedValues(tree);
   const optimalPath = findOptimalPath(tree, evMap);
+  const optimalPathSet = new Set(optimalPath);
   const nodes = { ...tree.nodes };
   for (const id of Object.keys(nodes)) {
     nodes[id] = {
       ...nodes[id],
       expectedValue: evMap[id] ?? null,
-      isOptimal: optimalPath.includes(id),
+      isOptimal: optimalPathSet.has(id),
     };
   }
   return { ...tree, nodes };
@@ -62,6 +63,11 @@ function treeReducer(state: TreeState, action: FullAction): TreeState {
     }
     case "UPDATE_NODE":
       return { ...state, tree: autoCalculate(updateNode(state.tree, action.nodeId, action.updates)) };
+    case "INSERT_INTERMEDIATE_NODE": {
+      const newTree = autoCalculate(insertIntermediateNode(state.tree, action.nodeId, action.nodeType, action.label));
+      const inserted = Object.keys(newTree.nodes).find((id) => !state.tree.nodes[id]) ?? state.selectedNodeId;
+      return { ...state, tree: newTree, selectedNodeId: inserted };
+    }
     case "SET_TREE":
       return { ...state, tree: autoCalculate(action.data), selectedNodeId: null };
     case "CLEAR_TREE":
@@ -113,7 +119,7 @@ export function TreeProvider({ children }: { children: ReactNode }) {
 }
 
 export function useTree() {
-  const ctx = useContext(TreeContext);
+  const ctx = use(TreeContext);
   if (!ctx) throw new Error("useTree must be used within TreeProvider");
   return ctx;
 }

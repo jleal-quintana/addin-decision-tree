@@ -18,6 +18,13 @@ function NodeItem({ node, depth }: { node: TreeNode; depth: number }) {
     dispatch({ type: "SELECT_NODE", nodeId: node.id });
   }, [dispatch, node.id]);
 
+  const handleSelectKeyDown = useCallback((event: React.KeyboardEvent<HTMLDivElement>) => {
+    if (event.key === "Enter" || event.key === " ") {
+      event.preventDefault();
+      handleSelect();
+    }
+  }, [handleSelect]);
+
   const handleAddChild = useCallback((type: NodeType) => {
     const labels: Record<NodeType, string> = {
       decision: "Nueva decisión",
@@ -49,24 +56,35 @@ function NodeItem({ node, depth }: { node: TreeNode; depth: number }) {
     : "";
 
   const typeInitial = { decision: "D", chance: "C", end: "R" }[node.type];
+  const branchLabel = node.parentId ? node.branchLabel || node.label : null;
 
   return (
     <>
       <div
         className={`node-item ${isSelected ? "selected" : ""} ${node.isOptimal ? "optimal" : ""}`}
         onClick={handleSelect}
+        onKeyDown={handleSelectKeyDown}
+        role="button"
+        tabIndex={0}
+        aria-pressed={isSelected}
         style={{ paddingLeft: 10 + depth * 18 }}
       >
         <div className={`node-badge ${node.type}`}>{typeInitial}</div>
-        <span className="node-label">{node.label}</span>
+        <span className="node-label">
+          {branchLabel && <span className="branch-pill">{branchLabel}</span>}
+          {node.label}
+        </span>
         {metaText && <span className="node-meta">{metaText}</span>}
         {evText && <span className="node-meta ev">{evText}</span>}
-        <div className="node-actions" onClick={(e) => e.stopPropagation()}>
+        <div className="node-actions">
           {node.type !== "end" && (
             <>
               <button
                 className="add-decision"
-                onClick={() => handleAddChild("decision")}
+                onClick={(e) => {
+                  e.stopPropagation();
+                  handleAddChild("decision");
+                }}
                 aria-label="Agregar decisión"
                 title="Agregar decisión"
               >
@@ -74,7 +92,10 @@ function NodeItem({ node, depth }: { node: TreeNode; depth: number }) {
               </button>
               <button
                 className="add-chance"
-                onClick={() => handleAddChild("chance")}
+                onClick={(e) => {
+                  e.stopPropagation();
+                  handleAddChild("chance");
+                }}
                 aria-label="Agregar incertidumbre"
                 title="Agregar incertidumbre"
               >
@@ -82,7 +103,10 @@ function NodeItem({ node, depth }: { node: TreeNode; depth: number }) {
               </button>
               <button
                 className="add-end"
-                onClick={() => handleAddChild("end")}
+                onClick={(e) => {
+                  e.stopPropagation();
+                  handleAddChild("end");
+                }}
                 aria-label="Agregar resultado final"
                 title="Agregar resultado final"
               >
@@ -92,7 +116,10 @@ function NodeItem({ node, depth }: { node: TreeNode; depth: number }) {
           )}
           <button
             className="delete"
-            onClick={handleDelete}
+            onClick={(e) => {
+              e.stopPropagation();
+              handleDelete();
+            }}
             aria-label="Eliminar nodo"
             title="Eliminar"
           >
@@ -232,7 +259,7 @@ export function TreeBuilder({ drawApi }: TreeBuilderProps = {}) {
 
   return (
     <div className="node-list">
-      <div style={{ padding: "4px 10px", fontSize: 10, color: "var(--text-secondary)", borderBottom: "1px solid var(--border)" }}>
+      <div className="node-list-mode">
         {tree.metadata.mode === "minimize" ? "Modo Costo · elegir menor costo esperado" : "Modo Valor · elegir mejor resultado esperado"}
       </div>
       <NodeItem node={rootNode} depth={0} />

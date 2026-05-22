@@ -89,7 +89,7 @@ export function describeOptimalStrategy(
       const bestChildId = getOptimalChildId(tree, nodeId, evMap);
       if (!bestChildId) return;
       const bestChild = tree.nodes[bestChildId];
-      parts.push(`${indent}-> ${node.label}: elegir "${bestChild?.label}"${evStr}`);
+      parts.push(`${indent}-> ${node.label}: elegir "${bestChild?.branchLabel || bestChild?.label}"${evStr}`);
       describe(bestChildId, depth + 1);
       return;
     }
@@ -100,7 +100,7 @@ export function describeOptimalStrategy(
         const child = tree.nodes[childId];
         if (!child) continue;
         const prob = child.probability ?? 0;
-        parts.push(`${indent}  p=${(prob * 100).toFixed(1)}%: ${child.label}`);
+        parts.push(`${indent}  ${(child.branchLabel || child.label)} p=${(prob * 100).toFixed(1)}%`);
         if (child.type !== "end") {
           describe(childId, depth + 2);
         }

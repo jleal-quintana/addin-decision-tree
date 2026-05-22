@@ -18,6 +18,7 @@ export function addNode(tree: DecisionTreeData, parentId: string | null, type: N
   const parent = parentId ? tree.nodes[parentId] : null;
   const newNode: TreeNode = {
     id, type, label,
+    branchLabel: parent ? label : null,
     payoff: type === "end" ? 0 : null,
     cost: null,
     time: null,
@@ -25,7 +26,7 @@ export function addNode(tree: DecisionTreeData, parentId: string | null, type: N
     isOptimal: false,
     parentId,
     childIds: [],
-    probability: parent?.type === "chance" ? 0 : null,
+    probability: parent?.type === "chance" ? (parent.childIds.length === 0 ? 1 : 0) : null,
     collapsed: false,
     customFields: {},
   };
@@ -34,6 +35,52 @@ export function addNode(tree: DecisionTreeData, parentId: string | null, type: N
     nodes[parentId] = { ...nodes[parentId], childIds: [...nodes[parentId].childIds, id] };
   }
   return { ...tree, nodes, rootId: parentId === null ? id : tree.rootId, metadata: { ...tree.metadata, updatedAt: new Date().toISOString() } };
+}
+
+export function insertIntermediateNode(
+  tree: DecisionTreeData,
+  nodeId: string,
+  type: Exclude<NodeType, "end">,
+  label: string
+): DecisionTreeData {
+  const child = tree.nodes[nodeId];
+  if (!child?.parentId) return tree;
+
+  const parent = tree.nodes[child.parentId];
+  if (!parent) return tree;
+
+  const id = generateId();
+  const intermediate: TreeNode = {
+    id,
+    type,
+    label,
+    branchLabel: child.branchLabel ?? child.label,
+    payoff: null,
+    cost: null,
+    time: null,
+    expectedValue: null,
+    isOptimal: false,
+    parentId: parent.id,
+    childIds: [child.id],
+    probability: parent.type === "chance" ? child.probability ?? 1 : null,
+    collapsed: false,
+    customFields: {},
+  };
+
+  const nodes = { ...tree.nodes };
+  nodes[parent.id] = {
+    ...parent,
+    childIds: parent.childIds.map((id) => (id === child.id ? intermediate.id : id)),
+  };
+  nodes[child.id] = {
+    ...child,
+    parentId: intermediate.id,
+    branchLabel: "Continuar",
+    probability: type === "chance" ? 1 : null,
+  };
+  nodes[intermediate.id] = intermediate;
+
+  return { ...tree, nodes, metadata: { ...tree.metadata, updatedAt: new Date().toISOString() } };
 }
 
 function collectSubtreeIds(tree: DecisionTreeData, nodeId: string): Set<string> {
@@ -61,7 +108,7 @@ export function removeNode(tree: DecisionTreeData, nodeId: string): DecisionTree
   return { ...tree, nodes, rootId: tree.rootId && toRemove.has(tree.rootId) ? null : tree.rootId, metadata: { ...tree.metadata, updatedAt: new Date().toISOString() } };
 }
 
-export function updateNode(tree: DecisionTreeData, nodeId: string, updates: Partial<Pick<TreeNode, "label" | "type" | "payoff" | "probability" | "cost" | "time" | "customFields">>): DecisionTreeData {
+export function updateNode(tree: DecisionTreeData, nodeId: string, updates: Partial<Pick<TreeNode, "label" | "branchLabel" | "type" | "payoff" | "probability" | "cost" | "time" | "customFields">>): DecisionTreeData {
   const node = tree.nodes[nodeId];
   if (!node) return tree;
   const nodes = { ...tree.nodes };
@@ -154,13 +201,14 @@ export function validate(tree: DecisionTreeData): ValidationError[] {
         const child = tree.nodes[childId];
         if (!child) return acc;
         if (child.probability === null || child.probability === undefined) {
-          errors.push({ nodeId: childId, message: `"${child.label}" necesita una probabilidad porque su padre es de azar` });
+          const branchName = child.branchLabel || child.label;
+          errors.push({ nodeId: childId, message: `Falta probabilidad en la rama "${branchName}"` });
           return acc;
         }
         return acc + child.probability;
       }, 0);
       if (Math.abs(sum - 1) > 0.001) {
-        errors.push({ nodeId, message: `Prob. de "${node.label}" suman ${(sum * 100).toFixed(1)}% (deben ser 100%)` });
+        errors.push({ nodeId, message: `Las probabilidades que salen de "${node.label}" suman ${(sum * 100).toFixed(1)}% (deben ser 100%)` });
       }
     }
 
@@ -168,7 +216,8 @@ export function validate(tree: DecisionTreeData): ValidationError[] {
       for (const childId of node.childIds) {
         const child = tree.nodes[childId];
         if (child && child.probability !== null && Math.abs(child.probability) > 0.000001) {
-          errors.push({ nodeId: childId, message: `"${child.label}" no debe tener probabilidad operativa bajo una decision` });
+          const branchName = child.branchLabel || child.label;
+          errors.push({ nodeId: childId, message: `La rama "${branchName}" sale de una decision y no debe tener probabilidad` });
         }
       }
     }
@@ -210,6 +259,7 @@ export function deserialize(json: string): DecisionTreeData {
   if (!data.metadata.mode) data.metadata.mode = "maximize";
   // Backwards compat: add customFields if missing
   for (const node of Object.values(data.nodes)) {
+    if (node.branchLabel === undefined) node.branchLabel = node.parentId ? node.label : null;
     if (!node.customFields) node.customFields = {};
   }
   return data;

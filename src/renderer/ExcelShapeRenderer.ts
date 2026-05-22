@@ -518,6 +518,54 @@ function writeEdgeLabelCells(
   labelRange.format.horizontalAlignment = "Left";
 }
 
+function addEdgeLabelTextBox(
+  sheet: Excel.Worksheet,
+  edge: LayoutResult["edges"][number],
+  edgeLabel: string,
+  fromRect: NodeRect,
+  toRect: NodeRect
+): Excel.Shape | null {
+  if (!edgeLabel.trim()) return null;
+
+  const markerSize = Math.min(24, fromRect.height - 10, fromRect.width * 0.45);
+  const targetMarkerSize = Math.min(24, toRect.height - 10, toRect.width * 0.45);
+  const beginLeft = fromRect.left + 4 + markerSize;
+  const endLeft = toRect.left + 4 + targetMarkerSize / 2;
+  const endTop = toRect.top + toRect.height / 2;
+  const horizontalStartLeft = Math.min(
+    endLeft - 10,
+    beginLeft + Math.max(18, Math.min(42, (endLeft - beginLeft) * 0.28))
+  );
+
+  const width = Math.max(58, Math.min(132, endLeft - horizontalStartLeft - 8));
+  const height = edgeLabel.includes("\n") ? 28 : 18;
+  const left = horizontalStartLeft + Math.max(2, (endLeft - horizontalStartLeft - width) / 2);
+  const top = endTop - height - 4;
+
+  const box = sheet.shapes.addTextBox(edgeLabel.replace(/\n/g, " · "));
+  box.name = `${SHAPE_PREFIX}BRANCH_${edge.fromId}_${edge.toId}`;
+  box.left = left;
+  box.top = top;
+  box.width = width;
+  box.height = height;
+  setShapePlacement(box);
+  box.fill.setSolidColor(edge.isOptimal ? QUINTANA.limeTenue : QUINTANA.paper);
+  box.lineFormat.visible = true;
+  box.lineFormat.color = edge.isOptimal ? QUINTANA.olive : QUINTANA.slate;
+  box.lineFormat.weight = edge.isOptimal ? 2 : 1;
+  box.textFrame.leftMargin = 3;
+  box.textFrame.rightMargin = 3;
+  box.textFrame.topMargin = 1;
+  box.textFrame.bottomMargin = 1;
+  box.textFrame.horizontalAlignment = "Center" as any;
+  box.textFrame.verticalAlignment = "Middle" as any;
+  box.textFrame.textRange.font.name = "Calibri";
+  box.textFrame.textRange.font.size = 8;
+  box.textFrame.textRange.font.bold = edge.isOptimal;
+  box.textFrame.textRange.font.color = edge.isOptimal ? QUINTANA.forest : QUINTANA.marine;
+  return box;
+}
+
 /**
  * Leyenda de formas abajo del árbol — hace al documento auto-explicativo.
  */
@@ -985,9 +1033,9 @@ export async function renderToExcel(
             }
           }
 
-          // Paso 1d: label cells (puede fallar por overlap de merges).
+          // Paso 1d: label de rama como text box sobre el conector.
           try {
-            writeEdgeLabelCells(treeSheet, edge, renderEdge?.label ?? "");
+            addEdgeLabelTextBox(treeSheet, edge, renderEdge?.label ?? "", fromRect, toRect);
             await context.sync();
             logDiagnostic(`edge.label ${edgeKey}`, "success");
           } catch (error) {

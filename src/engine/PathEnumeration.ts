@@ -41,7 +41,8 @@ export function enumeratePaths(tree: DecisionTreeData): PathRow[] {
     const branchCost = parent ? node.cost ?? 0 : 0;
     const nextCost = accCost + branchCost;
 
-    const nextLabels = [...accLabels, node.label];
+    const labelPart = parent && node.branchLabel ? `${node.branchLabel}: ${node.label}` : node.label;
+    const nextLabels = [...accLabels, labelPart];
     const nextIds = [...accIds, node.id];
 
     if (node.type === "end" || node.childIds.length === 0) {
@@ -64,11 +65,10 @@ export function enumeratePaths(tree: DecisionTreeData): PathRow[] {
 
   walk(tree.rootId, [], [], 1, 0);
 
-  const optimalNodeIds = new Set(
-    Object.values(tree.nodes)
-      .filter((n) => n.isOptimal)
-      .map((n) => n.id)
-  );
+  const optimalNodeIds = new Set<string>();
+  for (const node of Object.values(tree.nodes)) {
+    if (node.isOptimal) optimalNodeIds.add(node.id);
+  }
 
   for (const row of rows) {
     row.isOptimal = row.ids.every((id) => optimalNodeIds.has(id));

@@ -77,6 +77,7 @@ export function computeLayout(
       calcRow: calcSheet?.nodeRefs[node.id]?.sheetRow ?? null,
       type: node.type,
       label: node.label,
+      branchLabel: node.branchLabel ?? null,
       expectedValue: node.expectedValue,
       payoff: node.payoff,
       cost: node.cost,
@@ -111,7 +112,7 @@ export function computeLayout(
           col + grid.nodeCols + Math.max(0, Math.floor(grid.colGap / 2))
         ),
         calcRow: calcSheet?.nodeRefs[child.id]?.sheetRow ?? null,
-        label: child.label,
+        label: child.branchLabel || child.label,
         probability: child.probability,
         isOptimal: node.isOptimal && child.isOptimal,
       });
