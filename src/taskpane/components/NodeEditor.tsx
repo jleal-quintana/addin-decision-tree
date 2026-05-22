@@ -316,8 +316,40 @@ function ChildProbabilities({
   const headingId = useId();
   if (node.type !== "chance" || node.childIds.length === 0) return null;
 
-  const sum = node.childIds.reduce((total, childId) => total + (nodes[childId]?.probability ?? 0), 0);
+  const children = node.childIds.map((id) => nodes[id]).filter(Boolean);
+  const sum = children.reduce((total, child) => total + (child.probability ?? 0), 0);
   const sumOk = Math.abs(sum - 1) <= 0.001;
+  const remaining = 1 - sum;
+  const emptyChildren = children.filter((c) => !c.probability || c.probability === 0);
+
+  let autoFix: { label: string; apply: () => void } | null = null;
+  if (!sumOk) {
+    if (remaining > 0.001 && emptyChildren.length === 1) {
+      const target = emptyChildren[0];
+      autoFix = {
+        label: `Asignar ${(remaining * 100).toFixed(1)}% a "${target.branchLabel || target.label}"`,
+        apply: () => onCommit(target.id, remaining),
+      };
+    } else if (remaining > 0.001 && emptyChildren.length > 1) {
+      const share = remaining / emptyChildren.length;
+      autoFix = {
+        label: `Repartir ${(remaining * 100).toFixed(1)}% restante entre ${emptyChildren.length} ramas sin asignar`,
+        apply: () => {
+          for (const child of emptyChildren) onCommit(child.id, share);
+        },
+      };
+    } else if (sum > 0) {
+      autoFix = {
+        label: "Normalizar al 100%",
+        apply: () => {
+          for (const child of children) {
+            const next = (child.probability ?? 0) / sum;
+            onCommit(child.id, next);
+          }
+        },
+      };
+    }
+  }
 
   return (
     <div className="field" role="group" aria-labelledby={headingId}>
@@ -325,13 +357,10 @@ function ChildProbabilities({
         Ramas de esta incertidumbre
       </div>
       <div className="hint">El texto y el porcentaje viven sobre la rama, no dentro del círculo.</div>
-      {node.childIds.map((childId) => {
-        const child = nodes[childId];
-        if (!child) return null;
-        const inputId = `${headingId}-${childId}`;
-
+      {children.map((child) => {
+        const inputId = `${headingId}-${child.id}`;
         return (
-          <div key={childId} className="field-row probability-child-row">
+          <div key={child.id} className="field-row probability-child-row">
             <label htmlFor={inputId} className="inline-field-label">
               {child.branchLabel || child.label}
             </label>
@@ -339,7 +368,7 @@ function ChildProbabilities({
               id={inputId}
               className="probability-input"
               probability={child.probability ?? 0}
-              onCommit={(probability) => onCommit(childId, probability)}
+              onCommit={(probability) => onCommit(child.id, probability)}
               ariaLabel={`Probabilidad de ${child.branchLabel || child.label}`}
             />
             <span className="field-unit">%</span>
@@ -351,6 +380,11 @@ function ChildProbabilities({
         Total: {(sum * 100).toFixed(1)}%
         {sumOk ? " · OK" : " · las ramas deben sumar 100%"}
       </div>
+      {autoFix && (
+        <button type="button" className="field-completer" onClick={autoFix.apply}>
+          {autoFix.label}
+        </button>
+      )}
     </div>
   );
 }
