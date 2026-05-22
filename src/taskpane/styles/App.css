@@ -229,6 +229,15 @@ body {
   color: var(--qe-bosque);
 }
 
+.mode-hint {
+  font-family: 'Montserrat', sans-serif;
+  font-size: 10px;
+  font-weight: 500;
+  letter-spacing: 0.2px;
+  color: rgba(255, 255, 255, 0.6);
+  font-style: italic;
+}
+
 .mode-toggle__opt:focus-visible {
   outline: 2px solid var(--qe-lima);
   outline-offset: 2px;

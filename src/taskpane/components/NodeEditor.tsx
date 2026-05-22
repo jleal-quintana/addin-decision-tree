@@ -642,7 +642,16 @@ export function NodeEditor() {
   if (!node) return null;
 
   const hasProbabilitySection = parentNode?.type === "chance";
-  const evLabel = state.tree.metadata.mode === "minimize" ? "Costo esperado" : "Valor esperado";
+  const isCost = state.tree.metadata.mode === "minimize";
+  const evLabel = isCost ? "Costo esperado" : "Valor esperado";
+  const payoffLabel = isCost ? "Costo terminal ($)" : "Resultado ($)";
+  const payoffHint = isCost
+    ? "Costo total acumulado al llegar a este resultado. Se suma con los costos del camino."
+    : "Ingresá el VAN terminal o el ingreso final de esta rama.";
+  const costLabel = isCost ? "Costo adicional del nodo ($)" : "Costo de la rama ($)";
+  const costHint = isCost
+    ? "Costo de pasar por este nodo. Se suma al costo terminal."
+    : "Gasto asociado a la rama. Se resta del resultado.";
 
   return (
     <div className="node-editor">
@@ -682,7 +691,7 @@ export function NodeEditor() {
       <EditorSection title="Valores">
         {node.type === "end" && (
           <>
-            <Field id={payoffId} label="Resultado ($)">
+            <Field id={payoffId} label={payoffLabel}>
               <input
                 id={payoffId}
                 type="number"
@@ -692,10 +701,15 @@ export function NodeEditor() {
                 step="10000"
               />
               <div className="hint">
-                Ingresá el VAN terminal o el resultado directo.{" "}
-                <button type="button" className="inline-link-button" onClick={() => setShowVan((open) => !open)}>
-                  {showVan ? "Cerrar calculadora" : "Calcular VAN"}
-                </button>
+                {payoffHint}
+                {!isCost && (
+                  <>
+                    {" "}
+                    <button type="button" className="inline-link-button" onClick={() => setShowVan((open) => !open)}>
+                      {showVan ? "Cerrar calculadora" : "Calcular VAN"}
+                    </button>
+                  </>
+                )}
               </div>
             </Field>
 
@@ -713,7 +727,7 @@ export function NodeEditor() {
           </>
         )}
 
-        <Field id={costId} label="Costo de rama ($)">
+        <Field id={costId} label={costLabel}>
           <input
             id={costId}
             type="number"
@@ -726,6 +740,7 @@ export function NodeEditor() {
             placeholder="Opcional"
             step="10000"
           />
+          <div className="hint">{costHint}</div>
         </Field>
 
         <Field id={timeId} label="Tiempo">

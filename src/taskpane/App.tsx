@@ -212,7 +212,7 @@ function AppInner() {
                   aria-checked={!isCost}
                   className={`mode-toggle__opt ${!isCost ? "active" : ""}`}
                   onClick={() => handleModeChange("maximize")}
-                  title="Maximizar valor esperado"
+                  title="Buscar el camino con mayor valor esperado (ingresos - costos)"
                 >
                   Valor
                 </button>
@@ -222,11 +222,16 @@ function AppInner() {
                   aria-checked={isCost}
                   className={`mode-toggle__opt ${isCost ? "active" : ""}`}
                   onClick={() => handleModeChange("minimize")}
-                  title="Minimizar costo esperado"
+                  title="Buscar el camino con menor costo esperado"
                 >
                   Costo
                 </button>
               </div>
+              <span className="mode-hint" aria-live="polite">
+                {isCost
+                  ? "Minimiza costo: el menor número gana."
+                  : "Maximiza valor: el mayor número gana."}
+              </span>
               {updatedAtLabel && <span className="case-meta__update">· {updatedAtLabel}</span>}
             </div>
           )}
