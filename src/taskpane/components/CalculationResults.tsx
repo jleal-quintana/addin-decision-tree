@@ -212,9 +212,13 @@ export function CalculationResults() {
                 {paths.map((path) => {
                   const leafId = path.ids[path.ids.length - 1];
                   return (
-                    <tr key={path.ids.join("-")} className={path.isOptimal ? "optimal" : ""}>
+                    <tr key={path.ids.join("-")} className={path.isOptimal ? "optimal" : "pruned"}>
                       <td>
-                        {path.isOptimal && <span className="reco-dot" aria-label="Recomendado">●</span>}
+                        {path.isOptimal ? (
+                          <span className="reco-dot" aria-label="Recomendado">●</span>
+                        ) : (
+                          <span className="prune-mark" aria-label="Descartado" title="Rama podada: no es óptima">\\</span>
+                        )}
                         {path.label}
                       </td>
                       <td style={{ textAlign: "right" }}>{formatPercent(path.probability)}</td>

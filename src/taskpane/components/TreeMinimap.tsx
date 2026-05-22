@@ -96,14 +96,38 @@ export function TreeMinimap() {
             const to = positionsById.get(edge.toId);
             if (!from || !to) return null;
             const midX = (from.x + to.x) / 2;
+            const pruned = !edge.isOptimal;
+            const markX = (midX + to.x) / 2;
+            const markY = to.y;
             return (
-              <path
-                key={`${edge.fromId}-${edge.toId}`}
-                d={`M${from.x},${from.y} L${midX},${from.y} L${midX},${to.y} L${to.x},${to.y}`}
-                fill="none"
-                stroke={edge.isOptimal ? "var(--qe-verde)" : "var(--border)"}
-                strokeWidth={edge.isOptimal ? 1.8 : 1.2}
-              />
+              <g key={`${edge.fromId}-${edge.toId}`}>
+                <path
+                  d={`M${from.x},${from.y} L${midX},${from.y} L${midX},${to.y} L${to.x},${to.y}`}
+                  fill="none"
+                  stroke={edge.isOptimal ? "var(--qe-verde)" : "var(--border)"}
+                  strokeWidth={edge.isOptimal ? 1.8 : 1.2}
+                />
+                {pruned && (
+                  <g aria-hidden="true">
+                    <line
+                      x1={markX - 3}
+                      y1={markY - 3}
+                      x2={markX + 1}
+                      y2={markY + 3}
+                      stroke="var(--text-secondary)"
+                      strokeWidth={1.1}
+                    />
+                    <line
+                      x1={markX}
+                      y1={markY - 3}
+                      x2={markX + 4}
+                      y2={markY + 3}
+                      stroke="var(--text-secondary)"
+                      strokeWidth={1.1}
+                    />
+                  </g>
+                )}
+              </g>
             );
           })}
           {selectedId && positionsById.has(selectedId) && (
