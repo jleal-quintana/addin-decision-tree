@@ -188,7 +188,7 @@ function AppInner() {
             {validationIssues.length > 0 && <ValidationPanel issues={validationIssues} />}
             {state.tree.rootId && <TreeMinimap />}
             <TreeBuilder drawApi={drawApi} />
-            {state.selectedNodeId && <NodeEditor />}
+            {state.selectedNodeId && <NodeEditor key={state.selectedNodeId} />}
             <TreePreview />
           </>
         )}

@@ -914,6 +914,14 @@ body {
   border-bottom: 1px solid var(--border);
 }
 
+.node-editor .editor-header__text {
+  display: flex;
+  flex-direction: column;
+  gap: 2px;
+  min-width: 0;
+  flex: 1;
+}
+
 .node-editor .editor-header h2 {
   font-family: 'Montserrat', sans-serif;
   font-size: 13px;
@@ -921,6 +929,156 @@ body {
   color: var(--text-primary);
   text-transform: uppercase;
   letter-spacing: 0.5px;
+}
+
+.editor-breadcrumb {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: 3px;
+  font-size: 10.5px;
+  color: var(--text-muted);
+  line-height: 1.2;
+}
+
+.editor-breadcrumb__item {
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  max-width: 130px;
+}
+
+.editor-breadcrumb__sep {
+  color: var(--qe-beige);
+  font-weight: 700;
+}
+
+/* Wizard tabs (Identidad / Rama / Valores) */
+.editor-steps {
+  display: flex;
+  align-items: center;
+  gap: 4px;
+  margin-bottom: 12px;
+  padding: 4px;
+  background: var(--bg);
+  border: 1px solid var(--border);
+  border-radius: var(--radius);
+}
+
+.editor-step {
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+  padding: 6px 10px;
+  background: transparent;
+  border: 0;
+  border-radius: var(--radius-sm);
+  font-family: 'Montserrat', sans-serif;
+  font-size: 11px;
+  font-weight: 600;
+  color: var(--text-secondary);
+  cursor: pointer;
+  min-height: 28px;
+  letter-spacing: 0.1px;
+  flex: 1;
+  justify-content: center;
+  transition: background 0.12s ease, color 0.12s ease;
+}
+
+.editor-step:hover:not(.active) {
+  background: var(--bg-hover-soft);
+  color: var(--qe-bosque);
+}
+
+.editor-step.active {
+  background: var(--qe-verde);
+  color: var(--text-on-dark);
+}
+
+.editor-step__num {
+  display: inline-grid;
+  place-items: center;
+  width: 16px;
+  height: 16px;
+  border-radius: 50%;
+  background: rgba(0, 0, 0, 0.08);
+  font-size: 10px;
+  font-weight: 700;
+  font-family: 'Montserrat', sans-serif;
+  color: inherit;
+}
+
+.editor-step.active .editor-step__num {
+  background: rgba(255, 255, 255, 0.25);
+}
+
+.editor-step__divider {
+  width: 6px;
+  height: 1px;
+  background: var(--border);
+  flex-shrink: 0;
+}
+
+.editor-step-panel {
+  display: flex;
+  flex-direction: column;
+}
+
+/* Probability bar — visualización inline de la suma del grupo */
+.prob-bar {
+  position: relative;
+  width: 100%;
+  height: 6px;
+  margin-top: 6px;
+  background: var(--qe-gris);
+  border-radius: 3px;
+  overflow: hidden;
+}
+
+.prob-bar__fill {
+  position: absolute;
+  inset: 0 auto 0 0;
+  height: 100%;
+  background: var(--qe-verde);
+  border-radius: 3px;
+  transition: width 0.18s ease;
+}
+
+.prob-bar__fill.warn {
+  background: var(--warning);
+}
+
+.prob-bar__marker {
+  position: absolute;
+  top: -1px;
+  bottom: -1px;
+  right: 0;
+  width: 2px;
+  background: var(--qe-bosque);
+  opacity: 0.55;
+}
+
+/* Botón de "completar restante" */
+.field-completer {
+  display: inline-flex;
+  align-items: center;
+  gap: 5px;
+  margin-top: 8px;
+  padding: 6px 10px;
+  background: var(--qe-lima-soft);
+  color: var(--qe-bosque);
+  border: 1px solid var(--qe-verde);
+  border-radius: var(--radius-sm);
+  font-family: 'Montserrat', sans-serif;
+  font-size: 11px;
+  font-weight: 600;
+  cursor: pointer;
+  min-height: 28px;
+  transition: background 0.12s ease;
+}
+
+.field-completer:hover {
+  background: var(--qe-lima);
 }
 
 .branch-editor {
