@@ -7,6 +7,10 @@ import {
   productLaunchExample,
   vacaMuertaDevelopmentExample,
 } from "../../engine/Examples";
+import {
+  capacityDecisionExample,
+  threeProposalsExample,
+} from "../data/PdfExamples";
 import type { DrawTreeApi } from "../hooks/useDrawTree";
 import type { NodeIssueSummary } from "../utils/validationIssues";
 import { ConfirmDialog } from "./ConfirmDialog";
@@ -374,6 +378,26 @@ export function TreeBuilder({ drawApi, issuesByNode }: TreeBuilderProps = {}) {
           >
             <span className="title">Lanzamiento de producto</span>
             <span className="desc">Inversión · Modo Valor</span>
+          </button>
+          <button
+            type="button"
+            className="path-card example"
+            disabled={loading}
+            onClick={() => handleLoadExample(capacityDecisionExample, "Capacidad de planta")}
+            title="Caso clásico de Krajewski/Ritzman: elegir el tamaño de planta frente a demanda incierta."
+          >
+            <span className="title">Capacidad de planta</span>
+            <span className="desc">Krajewski · Modo Valor</span>
+          </button>
+          <button
+            type="button"
+            className="path-card example"
+            disabled={loading}
+            onClick={() => handleLoadExample(threeProposalsExample, "Tres propuestas comerciales")}
+            title="Ejemplo académico clásico: elegir entre tres alternativas con mismo mercado incierto."
+          >
+            <span className="title">Tres propuestas</span>
+            <span className="desc">Académico · Modo Valor</span>
           </button>
         </div>
       </div>
