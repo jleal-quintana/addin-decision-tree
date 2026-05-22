@@ -261,19 +261,6 @@ export function TreeBuilder({ drawApi }: TreeBuilderProps = {}) {
     [drawApi]
   );
 
-  const handleModeChange = useCallback(
-    (mode: "maximize" | "minimize") => {
-      dispatch({
-        type: "SET_TREE",
-        data: {
-          ...state.tree,
-          metadata: { ...state.tree.metadata, mode, updatedAt: new Date().toISOString() },
-        },
-      });
-    },
-    [dispatch, state.tree]
-  );
-
   if (!tree.rootId) {
     return (
       <div className="empty-state">
@@ -376,22 +363,9 @@ export function TreeBuilder({ drawApi }: TreeBuilderProps = {}) {
 
   const rootNode = tree.nodes[tree.rootId];
   if (!rootNode) return null;
-  const isCost = tree.metadata.mode === "minimize";
 
   return (
     <div className="node-list">
-      <div className="node-list-mode">
-        <span className="mode-chip">{isCost ? "Modo Costo" : "Modo Valor"}</span>
-        <span>{isCost ? "Elegir menor costo esperado" : "Elegir mejor resultado esperado"}</span>
-        <select
-          aria-label="Cambiar modo del análisis"
-          value={tree.metadata.mode}
-          onChange={(e) => handleModeChange(e.target.value as "maximize" | "minimize")}
-        >
-          <option value="maximize">Modo Valor</option>
-          <option value="minimize">Modo Costo</option>
-        </select>
-      </div>
       <NodeItem node={rootNode} depth={0} />
     </div>
   );

@@ -1,5 +1,6 @@
-import React, { Component, ReactNode, useCallback, useMemo, useRef, useState } from "react";
+import React, { Component, ReactNode, useCallback, useEffect, useMemo, useRef, useState } from "react";
 import { isDebugEnabled } from "../debug/excelDiagnostics";
+import { saveToWorkbook } from "../excel/WorkbookState";
 import { CalculationResults } from "./components/CalculationResults";
 import { DebugPanel } from "./components/DebugPanel";
 import { HelpPopover } from "./components/HelpPopover";
@@ -13,6 +14,20 @@ import { ValidationPanel } from "./components/ValidationPanel";
 import { useTree } from "./context/TreeContext";
 import { useDrawTree } from "./hooks/useDrawTree";
 import { buildValidationIssues } from "./utils/validationIssues";
+
+function formatRelativeUpdate(iso: string): string {
+  const updated = new Date(iso).getTime();
+  if (!Number.isFinite(updated)) return "";
+  const diff = Date.now() - updated;
+  if (diff < 30_000) return "actualizado ahora";
+  const minutes = Math.round(diff / 60_000);
+  if (minutes < 60) return `actualizado hace ${minutes} min`;
+  const hours = Math.round(minutes / 60);
+  if (hours < 24) return `actualizado hace ${hours} h`;
+  const days = Math.round(hours / 24);
+  if (days < 7) return `actualizado hace ${days} d`;
+  return `actualizado ${new Date(iso).toLocaleDateString("es-AR")}`;
+}
 
 class ErrorBoundary extends Component<{ children: ReactNode }, { error: Error | null }> {
   state = { error: null as Error | null };
@@ -86,8 +101,10 @@ function AppInner() {
   );
 
   const isCost = state.tree.metadata.mode === "minimize";
-  const modeLabel = isCost ? "Modo Costo" : "Modo Valor";
   const caseName = state.tree.metadata.name ?? "";
+  const updatedAtLabel = state.tree.metadata.updatedAt
+    ? formatRelativeUpdate(state.tree.metadata.updatedAt)
+    : "";
 
   const handleCaseRename = useCallback(
     (value: string) => {
@@ -105,6 +122,41 @@ function AppInner() {
     },
     [dispatch, state.tree]
   );
+
+  const handleModeChange = useCallback(
+    (mode: "maximize" | "minimize") => {
+      if (mode === state.tree.metadata.mode) return;
+      dispatch({
+        type: "SET_TREE",
+        data: {
+          ...state.tree,
+          metadata: { ...state.tree.metadata, mode, updatedAt: new Date().toISOString() },
+        },
+      });
+    },
+    [dispatch, state.tree]
+  );
+
+  useEffect(() => {
+    function handleKey(event: KeyboardEvent) {
+      if (!(event.ctrlKey || event.metaKey)) return;
+      if (event.key === "s" || event.key === "S") {
+        event.preventDefault();
+        if (!state.tree.rootId) {
+          showToast("Info", "No hay árbol para guardar", "info");
+          return;
+        }
+        saveToWorkbook(state.tree)
+          .then(() => showToast("Guardado", "Datos guardados en el libro", "success"))
+          .catch((error) => {
+            const msg = error instanceof Error ? error.message : String(error);
+            showToast("Error", msg || "Error al guardar", "error");
+          });
+      }
+    }
+    document.addEventListener("keydown", handleKey);
+    return () => document.removeEventListener("keydown", handleKey);
+  }, [showToast, state.tree]);
 
   return (
     <div className="app-container">
@@ -126,18 +178,57 @@ function AppInner() {
         <div className="header-text">
           <div className="eyebrow">Quintana Energy · Análisis de decisión</div>
           {state.tree.rootId ? (
-            <input
-              className="case-input"
-              type="text"
-              value={caseName}
-              onChange={(e) => handleCaseRename(e.target.value)}
-              placeholder="Nombre del caso"
-              aria-label="Nombre del caso"
-            />
+            <div className="case-input-wrap">
+              <input
+                className="case-input"
+                type="text"
+                value={caseName}
+                onChange={(e) => handleCaseRename(e.target.value)}
+                placeholder="Nombre del caso"
+                aria-label="Nombre del caso"
+              />
+              <svg
+                className="case-input__pencil"
+                width="13"
+                height="13"
+                viewBox="0 0 16 16"
+                fill="none"
+                aria-hidden="true"
+              >
+                <path d="M2 14l3-1 8-8-2-2-8 8z" stroke="currentColor" strokeWidth="1.4" />
+                <path d="M10 4l2 2" stroke="currentColor" strokeWidth="1.4" />
+              </svg>
+            </div>
           ) : (
             <h1>Nuevo análisis</h1>
           )}
-          {state.tree.rootId && <div className="case-meta">{modeLabel}</div>}
+          {state.tree.rootId && (
+            <div className="case-meta">
+              <div className="mode-toggle" role="radiogroup" aria-label="Modo del análisis">
+                <button
+                  type="button"
+                  role="radio"
+                  aria-checked={!isCost}
+                  className={`mode-toggle__opt ${!isCost ? "active" : ""}`}
+                  onClick={() => handleModeChange("maximize")}
+                  title="Maximizar valor esperado"
+                >
+                  Valor
+                </button>
+                <button
+                  type="button"
+                  role="radio"
+                  aria-checked={isCost}
+                  className={`mode-toggle__opt ${isCost ? "active" : ""}`}
+                  onClick={() => handleModeChange("minimize")}
+                  title="Minimizar costo esperado"
+                >
+                  Costo
+                </button>
+              </div>
+              {updatedAtLabel && <span className="case-meta__update">· {updatedAtLabel}</span>}
+            </div>
+          )}
         </div>
         <button
           ref={helpBtnRef}

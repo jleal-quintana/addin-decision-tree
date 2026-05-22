@@ -128,27 +128,51 @@ body {
   line-height: 1.15;
 }
 
+.app-header .case-input-wrap {
+  position: relative;
+  display: flex;
+  align-items: center;
+  gap: 6px;
+}
+
 .app-header .case-input {
   width: 100%;
-  background: transparent;
-  border: none;
+  background: rgba(255, 255, 255, 0.06);
+  border: 1px dashed rgba(255, 255, 255, 0.18);
   color: var(--text-on-dark);
   font-family: 'Montserrat', sans-serif;
   font-size: 15px;
   font-weight: 700;
   letter-spacing: 0.2px;
-  padding: 1px 2px;
-  border-radius: 3px;
+  padding: 3px 26px 3px 6px;
+  border-radius: 4px;
+  transition: background 0.12s ease, border-color 0.12s ease;
 }
 
 .app-header .case-input::placeholder {
   color: rgba(255, 255, 255, 0.55);
 }
 
+.app-header .case-input:hover {
+  background: rgba(255, 255, 255, 0.1);
+  border-color: rgba(255, 255, 255, 0.3);
+}
+
 .app-header .case-input:focus-visible {
   outline: none;
-  background: rgba(255, 255, 255, 0.12);
+  background: rgba(255, 255, 255, 0.14);
+  border-color: var(--qe-lima);
+  border-style: solid;
   box-shadow: var(--focus-ring-lime);
+}
+
+.app-header .case-input__pencil {
+  position: absolute;
+  right: 7px;
+  top: 50%;
+  transform: translateY(-50%);
+  color: rgba(255, 255, 255, 0.55);
+  pointer-events: none;
 }
 
 .app-header .case-meta {
@@ -156,8 +180,58 @@ body {
   font-size: 10px;
   font-weight: 500;
   color: var(--text-on-dark-soft);
-  margin-top: 3px;
+  margin-top: 6px;
   letter-spacing: 0.3px;
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  flex-wrap: wrap;
+}
+
+.app-header .case-meta__update {
+  color: rgba(255, 255, 255, 0.55);
+  font-weight: 500;
+  font-size: 10px;
+}
+
+.mode-toggle {
+  display: inline-flex;
+  align-items: center;
+  gap: 0;
+  padding: 2px;
+  background: rgba(0, 0, 0, 0.2);
+  border-radius: 999px;
+  border: 1px solid rgba(255, 255, 255, 0.1);
+}
+
+.mode-toggle__opt {
+  background: transparent;
+  border: 0;
+  color: rgba(255, 255, 255, 0.7);
+  font-family: 'Montserrat', sans-serif;
+  font-size: 10px;
+  font-weight: 700;
+  letter-spacing: 0.5px;
+  text-transform: uppercase;
+  padding: 3px 10px;
+  border-radius: 999px;
+  cursor: pointer;
+  transition: background 0.12s ease, color 0.12s ease;
+}
+
+.mode-toggle__opt:hover:not(.active) {
+  color: var(--text-on-dark);
+  background: rgba(255, 255, 255, 0.08);
+}
+
+.mode-toggle__opt.active {
+  background: var(--qe-lima);
+  color: var(--qe-bosque);
+}
+
+.mode-toggle__opt:focus-visible {
+  outline: 2px solid var(--qe-lima);
+  outline-offset: 2px;
 }
 
 /* Toast */

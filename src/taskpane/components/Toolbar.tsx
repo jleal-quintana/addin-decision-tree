@@ -1,5 +1,4 @@
-import React, { useCallback, useEffect, useRef, useState } from "react";
-import { workoverExample, oilDrillingExample, productLaunchExample } from "../../engine/Examples";
+import React, { useCallback, useEffect, useState } from "react";
 import { clearShapes } from "../../excel/ShapeManager";
 import { loadFromWorkbook, saveToWorkbook } from "../../excel/WorkbookState";
 import { useTree } from "../context/TreeContext";
@@ -15,14 +14,11 @@ interface ToolbarProps {
 
 export function Toolbar({ showToast, drawApi }: ToolbarProps) {
   const { state, dispatch } = useTree();
-  const [showExamples, setShowExamples] = useState(false);
   const [showPreview, setShowPreview] = useState(false);
   const [showNewConfirm, setShowNewConfirm] = useState(false);
-  const menuRef = useRef<HTMLDivElement>(null);
-  const triggerRef = useRef<HTMLButtonElement>(null);
 
   const hasTree = !!state.tree.rootId;
-  const { drawing, renderError, drawCurrent, loadExample, clearRenderError } = drawApi;
+  const { drawing, renderError, drawCurrent, clearRenderError } = drawApi;
 
   const openPreview = useCallback(() => setShowPreview(true), []);
   const cancelPreview = useCallback(() => setShowPreview(false), []);
@@ -34,34 +30,6 @@ export function Toolbar({ showToast, drawApi }: ToolbarProps) {
   useEffect(() => {
     if (drawing) setShowPreview(false);
   }, [drawing]);
-
-  useEffect(() => {
-    if (!showExamples) return;
-
-    function handleClick(event: MouseEvent) {
-      if (menuRef.current && !menuRef.current.contains(event.target as Node)) {
-        setShowExamples(false);
-      }
-    }
-
-    function handleKey(event: KeyboardEvent) {
-      if (event.key === "Escape") {
-        setShowExamples(false);
-        triggerRef.current?.focus();
-      }
-    }
-
-    document.addEventListener("mousedown", handleClick);
-    document.addEventListener("keydown", handleKey);
-    return () => {
-      document.removeEventListener("mousedown", handleClick);
-      document.removeEventListener("keydown", handleKey);
-    };
-  }, [showExamples]);
-
-  useEffect(() => {
-    if (!hasTree) setShowExamples(false);
-  }, [hasTree]);
 
   const handleSave = useCallback(async () => {
     try {
@@ -115,14 +83,6 @@ export function Toolbar({ showToast, drawApi }: ToolbarProps) {
     setShowNewConfirm(false);
   }, [clearRenderError, dispatch]);
 
-  const handleExample = useCallback(
-    (exampleFn: () => ReturnType<typeof oilDrillingExample>, name: string) => {
-      setShowExamples(false);
-      loadExample(exampleFn, name);
-    },
-    [loadExample]
-  );
-
   const drawDisabled = drawing || !hasTree;
 
   return (
@@ -170,7 +130,7 @@ export function Toolbar({ showToast, drawApi }: ToolbarProps) {
             </svg>
             Nuevo
           </button>
-          <button type="button" className="btn btn-ghost" onClick={handleSave} disabled={drawing}>
+          <button type="button" className="btn btn-ghost" onClick={handleSave} disabled={drawing} title="Guardar en el libro (Ctrl+S)">
             <svg viewBox="0 0 16 16" fill="none" stroke="currentColor" strokeWidth="1.5" aria-hidden="true">
               <path d="M3 2h8l2 2v10H3z" />
               <path d="M5 2v4h5V2" />
@@ -192,55 +152,6 @@ export function Toolbar({ showToast, drawApi }: ToolbarProps) {
             </svg>
             Limpiar Excel
           </button>
-          {hasTree && (
-            <div style={{ position: "relative" }} ref={menuRef}>
-              <button
-                ref={triggerRef}
-                type="button"
-                className="btn btn-ghost"
-                onClick={() => setShowExamples((value) => !value)}
-                disabled={drawing}
-                aria-expanded={showExamples}
-                aria-haspopup="menu"
-              >
-                <svg viewBox="0 0 16 16" fill="none" stroke="currentColor" strokeWidth="1.5" aria-hidden="true">
-                  <path d="M2 3h12M2 8h12M2 13h8" />
-                </svg>
-                Ejemplos
-              </button>
-              {showExamples && (
-                <div className="dropdown-menu" role="menu">
-                  <button
-                    type="button"
-                    role="menuitem"
-                    className="dropdown-item"
-                    onClick={() => handleExample(workoverExample, "Workover de pozo")}
-                  >
-                    Workover de pozo
-                    <span className="desc">Intervención · Modo Costo</span>
-                  </button>
-                  <button
-                    type="button"
-                    role="menuitem"
-                    className="dropdown-item"
-                    onClick={() => handleExample(oilDrillingExample, "Perforación de pozo")}
-                  >
-                    Perforación de pozo
-                    <span className="desc">Inversión · Modo Valor</span>
-                  </button>
-                  <button
-                    type="button"
-                    role="menuitem"
-                    className="dropdown-item"
-                    onClick={() => handleExample(productLaunchExample, "Lanzamiento de producto")}
-                  >
-                    Lanzamiento de producto
-                    <span className="desc">Inversión · Modo Valor</span>
-                  </button>
-                </div>
-              )}
-            </div>
-          )}
         </div>
       </div>
 
