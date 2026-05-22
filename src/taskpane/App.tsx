@@ -7,6 +7,7 @@ import { NodeEditor } from "./components/NodeEditor";
 import { StatusStrip } from "./components/StatusStrip";
 import { Toolbar } from "./components/Toolbar";
 import { TreeBuilder } from "./components/TreeBuilder";
+import { TreeMinimap } from "./components/TreeMinimap";
 import { TreePreview } from "./components/TreePreview";
 import { ValidationPanel } from "./components/ValidationPanel";
 import { useTree } from "./context/TreeContext";
@@ -185,6 +186,7 @@ function AppInner() {
         {activeTab === "build" && (
           <>
             {validationIssues.length > 0 && <ValidationPanel issues={validationIssues} />}
+            {state.tree.rootId && <TreeMinimap />}
             <TreeBuilder drawApi={drawApi} />
             {state.selectedNodeId && <NodeEditor />}
             <TreePreview />

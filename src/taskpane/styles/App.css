@@ -259,6 +259,68 @@ body {
 }
 
 /* ============================================================
+   Tree Minimap — vista compacta de la estructura del árbol
+   ============================================================ */
+.tree-minimap {
+  margin: 10px 12px 4px;
+  padding: 10px 12px 8px;
+  background: var(--bg-card);
+  border: 1px solid var(--border);
+  border-radius: var(--radius);
+}
+
+.tree-minimap__header {
+  display: flex;
+  justify-content: space-between;
+  align-items: baseline;
+  margin-bottom: 6px;
+}
+
+.tree-minimap__title {
+  font-family: 'Montserrat', sans-serif;
+  font-size: 10px;
+  font-weight: 700;
+  color: var(--qe-bosque);
+  letter-spacing: 0.8px;
+  text-transform: uppercase;
+}
+
+.tree-minimap__meta {
+  font-size: 10.5px;
+  color: var(--text-muted);
+}
+
+.tree-minimap__viewport {
+  width: 100%;
+  height: 110px;
+  background: var(--bg);
+  border: 1px solid var(--border);
+  border-radius: var(--radius-sm);
+  overflow: hidden;
+}
+
+.tree-minimap__viewport svg {
+  display: block;
+  width: 100%;
+  height: 100%;
+}
+
+.tree-minimap__viewport g[role="button"]:focus-visible {
+  outline: none;
+}
+
+.tree-minimap__viewport g[role="button"]:focus-visible circle:first-child {
+  fill: var(--bg-selected-soft);
+}
+
+.tree-minimap__hint {
+  margin-top: 6px;
+  font-size: 10.5px;
+  color: var(--text-muted);
+  text-align: center;
+}
+
+/* ============================================================
    Validation panel — issues con fixes accionables
    ============================================================ */
 .validation-panel {
