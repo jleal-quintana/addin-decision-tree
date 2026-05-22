@@ -86,17 +86,27 @@ export function CalculationResults() {
     : null;
 
   // Primera rama elegida: primer nodo del camino óptimo cuyo padre sea una decisión.
-  const { recommendedAction, recommendedActionId } = useMemo(() => {
-    if (!optimalPath) return { recommendedAction: "", recommendedActionId: null as string | null };
+  const { recommendedAction, recommendedActionId, recommendedParentLabel } = useMemo(() => {
+    if (!optimalPath) {
+      return {
+        recommendedAction: "",
+        recommendedActionId: null as string | null,
+        recommendedParentLabel: "",
+      };
+    }
     for (const id of optimalPath.ids) {
       const node = tree.nodes[id];
       if (!node?.parentId) continue;
       const parent = tree.nodes[node.parentId];
       if (parent?.type === "decision") {
-        return { recommendedAction: node.branchLabel || node.label, recommendedActionId: id };
+        return {
+          recommendedAction: node.branchLabel || node.label,
+          recommendedActionId: id,
+          recommendedParentLabel: parent.parentId ? parent.label : "",
+        };
       }
     }
-    return { recommendedAction: "", recommendedActionId: null };
+    return { recommendedAction: "", recommendedActionId: null, recommendedParentLabel: "" };
   }, [optimalPath, tree.nodes]);
 
   const handleFocusNode = useCallback(
@@ -156,6 +166,9 @@ export function CalculationResults() {
               ? `Elegir: ${recommendedAction}`
               : "Camino recomendado resuelto"
             : "Todavía no hay una decisión clara"}
+          {recommendedParentLabel && (
+            <span className="reco-headline__context"> en {recommendedParentLabel}</span>
+          )}
         </div>
         <div className="reco-detail">
           <span className="reco-kv"><span className="reco-k">{rootLabel}:</span> <strong>{formatCurrency(rootEV)}</strong></span>

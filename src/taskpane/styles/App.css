@@ -1764,6 +1764,11 @@ body {
   margin-bottom: 8px;
 }
 
+.reco-headline__context {
+  font-weight: 500;
+  color: var(--text-secondary);
+}
+
 .reco-detail {
   display: flex;
   flex-direction: column;
