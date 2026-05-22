@@ -1,4 +1,4 @@
-import React, { useEffect, useState } from "react";
+import React, { useEffect, useMemo, useState } from "react";
 import {
   DiagnosticEntry,
   getDiagnostics,
@@ -10,6 +10,15 @@ export function DebugPanel() {
 
   useEffect(() => subscribeDiagnostics(setEntries), []);
 
+  const visibleEntries = useMemo(
+    () =>
+      entries.map((entry) => ({
+        ...entry,
+        timeLabel: new Date(entry.timestamp).toLocaleTimeString("es-AR"),
+      })),
+    [entries]
+  );
+
   return (
     <details className="debug-panel" open>
       <summary>Diagnostico</summary>
@@ -17,14 +26,14 @@ export function DebugPanel() {
         {entries.length === 0 ? (
           <p>Sin eventos todavia.</p>
         ) : (
-          entries.map((entry) => (
+          visibleEntries.map((entry) => (
             <div key={entry.id} className={`debug-entry ${entry.status}`}>
               <div className="debug-title">
                 <strong>{entry.operation}</strong>
                 <span>{entry.status}</span>
               </div>
               <div className="debug-meta">
-                {new Date(entry.timestamp).toLocaleTimeString("es-AR")}
+                {entry.timeLabel}
                 {entry.durationMs !== undefined ? ` · ${entry.durationMs}ms` : ""}
               </div>
               {entry.details && <div className="debug-details">{entry.details}</div>}

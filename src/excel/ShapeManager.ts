@@ -15,13 +15,14 @@ function prepareTreeForRender(tree: DecisionTreeData): DecisionTreeData {
 
   const evMap = calculateExpectedValues(tree);
   const optimalPath = findOptimalPath(tree, evMap);
+  const optimalPathSet = new Set(optimalPath);
   const nodes = { ...tree.nodes };
 
   for (const id of Object.keys(nodes)) {
     nodes[id] = {
       ...nodes[id],
       expectedValue: evMap[id] ?? null,
-      isOptimal: optimalPath.includes(id),
+      isOptimal: optimalPathSet.has(id),
     };
   }
 

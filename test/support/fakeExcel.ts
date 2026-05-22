@@ -505,6 +505,3 @@ export function getRange(
   return getWorksheet(context, sheetName)?.ranges.get(address);
 }
 
-export function getUnmergeCallCount(context: FakeRequestContext, sheetName: string): number {
-  return getWorksheet(context, sheetName)?.unmergeCalls ?? 0;
-}

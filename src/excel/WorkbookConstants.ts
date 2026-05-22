@@ -35,6 +35,3 @@ export const CALC_COLUMN_INDEX: Record<CalcColumnName, number> = {
   OptimalChildId: 10,
   IsOptimalPath: 11,
 };
-
-export const CALC_TABLE_START_ROW = 2;
-export const CALC_TABLE_START_COL = 60;

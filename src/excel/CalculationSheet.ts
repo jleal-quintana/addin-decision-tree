@@ -189,21 +189,24 @@ export async function writeCalculationTable(
     }
 
     if (node.type === "chance") {
-      const weightedTerms = node.childIds
-        .filter((childId) => rowByNodeId[childId] !== undefined)
-        .map((childId) => {
-          const childRow = rowByNodeId[childId];
-          return `${sameSheetRef(placement.startCol + CALC_COLUMN_INDEX.Probability, childRow)}*${sameSheetRef(placement.startCol + CALC_COLUMN_INDEX.NetEV, childRow)}`;
-        });
+      const weightedTerms: string[] = [];
+      for (const childId of node.childIds) {
+        const childRow = rowByNodeId[childId];
+        if (childRow === undefined) continue;
+        weightedTerms.push(
+          `${sameSheetRef(placement.startCol + CALC_COLUMN_INDEX.Probability, childRow)}*${sameSheetRef(placement.startCol + CALC_COLUMN_INDEX.NetEV, childRow)}`
+        );
+      }
       childrenEvCell.formulas = [[
         weightedTerms.length > 0 ? `=SUM(${weightedTerms.join(",")})` : "=0",
       ]];
     } else {
-      const childNetRefs = node.childIds
-        .filter((childId) => rowByNodeId[childId] !== undefined)
-        .map((childId) =>
-          sameSheetRef(placement.startCol + CALC_COLUMN_INDEX.NetEV, rowByNodeId[childId])
-        );
+      const childNetRefs: string[] = [];
+      for (const childId of node.childIds) {
+        const childRow = rowByNodeId[childId];
+        if (childRow === undefined) continue;
+        childNetRefs.push(sameSheetRef(placement.startCol + CALC_COLUMN_INDEX.NetEV, childRow));
+      }
       const fn = tree.metadata.mode === "minimize" ? "MIN" : "MAX";
       childrenEvCell.formulas = [[
         childNetRefs.length > 0 ? `=${fn}(${childNetRefs.join(",")})` : "=0",
@@ -225,9 +228,15 @@ export async function writeCalculationTable(
 
     // OptimalChildId solo aplica a nodos de decisión: en chance no se "elige"
     // un hijo, todos pueden ocurrir según probabilidad.
-    const optimalChildIdValue = node.type === "decision"
-      ? node.childIds.find((childId) => tree.nodes[childId]?.isOptimal) ?? ""
-      : "";
+    let optimalChildIdValue = "";
+    if (node.type === "decision") {
+      for (const childId of node.childIds) {
+        if (tree.nodes[childId]?.isOptimal) {
+          optimalChildIdValue = childId;
+          break;
+        }
+      }
+    }
     sheet.getRange(
       cellAddr(placement.startCol + CALC_COLUMN_INDEX.OptimalChildId, row)
     ).values = [[optimalChildIdValue]];

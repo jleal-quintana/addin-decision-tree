@@ -9,8 +9,8 @@ const root = createRoot(rootEl);
 
 function renderBootstrapError(title: string, message: string) {
   root.render(
-    <div style={{ padding: 24, textAlign: "center", fontFamily: "Montserrat, sans-serif" }}>
-      <h2 style={{ color: "#33492D" }}>{title}</h2>
+    <div className="bootstrap-error" role="alert">
+      <h2>{title}</h2>
       <p>{message}</p>
     </div>
   );
@@ -19,15 +19,15 @@ function renderBootstrapError(title: string, message: string) {
 if (typeof Office === "undefined") {
   renderBootstrapError(
     "Office no disponible",
-    "El runtime de Office no esta cargado. Abre este front-end desde Excel Desktop."
+    "El runtime de Office no está cargado. Abrí este panel desde Excel Desktop."
   );
 } else {
   let bootstrapped = false;
   const fallbackTimer = window.setTimeout(() => {
     if (!bootstrapped) {
       renderBootstrapError(
-        "Inicializacion lenta",
-        "Office no respondio a tiempo. Reabre el panel o revisa el modo debug."
+        "Inicialización lenta",
+        "Office no respondió a tiempo. Reabrí el panel o revisá el modo debug."
       );
     }
   }, 6000);
@@ -41,7 +41,7 @@ if (typeof Office === "undefined") {
       !Office.context.requirements.isSetSupported("ExcelApi", "1.10")
     ) {
       renderBootstrapError(
-        "Version no compatible",
+        "Versión no compatible",
         "Este add-in requiere Excel con ExcelApi 1.10 o superior."
       );
       return;

@@ -161,34 +161,36 @@ export function CalculationResults() {
       {/* 2. Tabla de caminos (DESIGN.md §4.3 punto 2) */}
       {paths.length > 0 && (
         <div className="results-section">
-          <h3>Resumen de caminos</h3>
-          <table className="data-table paths-table">
-            <thead>
-              <tr>
-                <th>Camino</th>
-                <th style={{ textAlign: "right" }}>Prob.</th>
-                <th style={{ textAlign: "right" }}>{rootLabel}</th>
-                <th style={{ textAlign: "right" }}>Vs recomendado</th>
-              </tr>
-            </thead>
-            <tbody>
-              {paths.map((path) => (
-                <tr key={path.ids.join("-")} className={path.isOptimal ? "optimal" : ""}>
-                  <td>
-                    {path.isOptimal && <span className="reco-dot" aria-label="Recomendado">●</span>}
-                    {path.label}
-                  </td>
-                  <td style={{ textAlign: "right" }}>{formatPercent(path.probability)}</td>
-                  <td style={{ textAlign: "right", fontFamily: "Montserrat, sans-serif", fontWeight: 600 }}>
-                    {formatCurrency(path.value)}
-                  </td>
-                  <td style={{ textAlign: "right" }}>
-                    {path.isOptimal ? "—" : formatCurrency(path.diff)}
-                  </td>
+          <h2>Resumen de caminos</h2>
+          <div className="data-table-wrap">
+            <table className="data-table paths-table">
+              <thead>
+                <tr>
+                  <th>Camino</th>
+                  <th style={{ textAlign: "right" }}>Prob.</th>
+                  <th style={{ textAlign: "right" }}>{rootLabel}</th>
+                  <th style={{ textAlign: "right" }}>Vs recomendado</th>
                 </tr>
-              ))}
-            </tbody>
-          </table>
+              </thead>
+              <tbody>
+                {paths.map((path) => (
+                  <tr key={path.ids.join("-")} className={path.isOptimal ? "optimal" : ""}>
+                    <td>
+                      {path.isOptimal && <span className="reco-dot" aria-label="Recomendado">●</span>}
+                      {path.label}
+                    </td>
+                    <td style={{ textAlign: "right" }}>{formatPercent(path.probability)}</td>
+                    <td style={{ textAlign: "right", fontFamily: "Montserrat, sans-serif", fontWeight: 600 }}>
+                      {formatCurrency(path.value)}
+                    </td>
+                    <td style={{ textAlign: "right" }}>
+                      {path.isOptimal ? "—" : formatCurrency(path.diff)}
+                    </td>
+                  </tr>
+                ))}
+              </tbody>
+            </table>
+          </div>
         </div>
       )}
 
@@ -201,10 +203,12 @@ export function CalculationResults() {
             aria-expanded={assumptionsOpen}
             type="button"
           >
-            <span className={`collapsible-chevron ${assumptionsOpen ? "open" : ""}`} aria-hidden>
-              ▸
+            <span className={`collapsible-chevron ${assumptionsOpen ? "open" : ""}`} aria-hidden="true">
+              <svg width="12" height="12" viewBox="0 0 12 12" fill="none">
+                <path d="M4 2l4 4-4 4" stroke="currentColor" strokeWidth="1.5" strokeLinecap="round" strokeLinejoin="round" />
+              </svg>
             </span>
-            <h3 style={{ margin: 0 }}>Supuestos clave</h3>
+            <h2 style={{ margin: 0 }}>Supuestos clave</h2>
             <span className="collapsible-hint">Ajustá las probabilidades para ver cómo cambia la recomendación</span>
           </button>
 

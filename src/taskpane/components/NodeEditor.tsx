@@ -2,9 +2,11 @@ import React, { useCallback, useId, useReducer, useState } from "react";
 import { useTree } from "../context/TreeContext";
 import { NodeType, TreeNode } from "../../models/types";
 
-const CUSTOM_FIELD_SUGGESTIONS = ["TIR", "Cash", "Precio petroleo", "OPEX", "CAPEX"];
+const CUSTOM_FIELD_SUGGESTIONS = ["TIR", "Cash", "Precio petróleo", "OPEX", "CAPEX"];
 
-type NodeUpdates = Partial<Pick<TreeNode, "label" | "branchLabel" | "type" | "payoff" | "probability" | "cost" | "time" | "customFields">>;
+type NodeUpdates = Partial<
+  Pick<TreeNode, "label" | "branchLabel" | "type" | "payoff" | "probability" | "cost" | "time" | "customFields">
+>;
 
 type VanState = {
   inversion: number;
@@ -74,17 +76,27 @@ function Field({
 
 function EditorHeader({ type }: { type: NodeType }) {
   const title = {
-    decision: "Editar decision",
+    decision: "Editar decisión",
     chance: "Editar incertidumbre",
     end: "Editar resultado",
   }[type];
 
   return (
     <div className="editor-header">
-      <div className={`node-badge node-badge-compact ${type}`}>
-        {{ decision: "D", chance: "C", end: "R" }[type]}
-      </div>
-      <h4>{title}</h4>
+      <span className={`node-badge node-badge-compact node-badge-${type}`} aria-hidden="true">
+        <svg viewBox="0 0 24 24" fill="none">
+          {type === "decision" && (
+            <rect x="4" y="4" width="16" height="16" rx="2" fill="var(--bg-card)" stroke="var(--qe-azul)" strokeWidth="1.5" />
+          )}
+          {type === "chance" && (
+            <circle cx="12" cy="12" r="8" fill="var(--bg-card)" stroke="var(--qe-beige)" strokeWidth="1.5" />
+          )}
+          {type === "end" && (
+            <path d="M12 4l8 14H4z" fill="var(--bg-card)" stroke="var(--qe-verde)" strokeWidth="1.5" strokeLinejoin="round" />
+          )}
+        </svg>
+      </span>
+      <h2>{title}</h2>
     </div>
   );
 }
@@ -97,7 +109,7 @@ function TypeSelector({
   onChange: (type: NodeType) => void;
 }) {
   const options: Array<{ type: NodeType; label: string; title: string }> = [
-    { type: "decision", label: "Decision", title: "Vos elegis entre alternativas" },
+    { type: "decision", label: "Decisión", title: "Vos elegís entre alternativas" },
     { type: "chance", label: "Incertidumbre", title: "El pozo, el mercado o la naturaleza responden" },
     { type: "end", label: "Resultado final", title: "Resultado final de una rama" },
   ];
@@ -135,6 +147,8 @@ function ProbabilityField({
   const id = useId();
   if (parentNode?.type !== "chance") return null;
 
+  const sumOk = siblingProbSum !== null && Math.abs(siblingProbSum - 1) <= 0.001;
+
   return (
     <Field id={id} label="Probabilidad de esta rama">
       <div className="field-row field-row-compact">
@@ -150,9 +164,9 @@ function ProbabilityField({
         <div className="field-unit">%</div>
       </div>
       {siblingProbSum !== null && (
-        <div className="hint" style={{ color: Math.abs(siblingProbSum - 1) > 0.001 ? "#c0392b" : "var(--qe-verde)" }}>
+        <div className={`hint ${sumOk ? "ok" : "error"}`}>
           Suma del grupo: {(siblingProbSum * 100).toFixed(1)}%
-          {Math.abs(siblingProbSum - 1) > 0.001 ? " (las ramas deben sumar 100%)" : " OK"}
+          {sumOk ? " · OK" : " · las ramas deben sumar 100%"}
         </div>
       )}
     </Field>
@@ -172,11 +186,14 @@ function ChildProbabilities({
   if (node.type !== "chance" || node.childIds.length === 0) return null;
 
   const sum = node.childIds.reduce((total, childId) => total + (nodes[childId]?.probability ?? 0), 0);
+  const sumOk = Math.abs(sum - 1) <= 0.001;
 
   return (
     <div className="field" role="group" aria-labelledby={headingId}>
-      <div id={headingId} className="field-label">Ramas de esta incertidumbre</div>
-      <div className="hint">El texto y el porcentaje viven sobre la rama, no dentro de la bolita.</div>
+      <div id={headingId} className="field-label">
+        Ramas de esta incertidumbre
+      </div>
+      <div className="hint">El texto y el porcentaje viven sobre la rama, no dentro del círculo.</div>
       {node.childIds.map((childId) => {
         const child = nodes[childId];
         if (!child) return null;
@@ -201,9 +218,9 @@ function ChildProbabilities({
           </div>
         );
       })}
-      <div className="hint" style={{ color: Math.abs(sum - 1) > 0.001 ? "#c0392b" : "var(--qe-verde)", marginTop: 4 }}>
+      <div className={`hint ${sumOk ? "ok" : "error"}`} style={{ marginTop: 4 }}>
         Total: {(sum * 100).toFixed(1)}%
-        {Math.abs(sum - 1) > 0.001 ? " (las ramas deben sumar 100%)" : " OK"}
+        {sumOk ? " · OK" : " · las ramas deben sumar 100%"}
       </div>
     </div>
   );
@@ -227,8 +244,8 @@ function IncomingBranchFields({
   return (
     <div className="branch-editor">
       <div className="field-label">Rama que llega a este nodo</div>
-      <div className="hint branch-help">La rama dice que paso; el nodo dice que viene despues.</div>
-      <Field id={branchId} label="Texto de rama">
+      <div className="hint branch-help">La rama dice qué pasó; el nodo dice qué viene después.</div>
+      <Field id={branchId} label="Texto de la rama">
         <input
           id={branchId}
           type="text"
@@ -245,15 +262,17 @@ function IncomingBranchFields({
           if (nodeId === node.id) onUpdate({ probability });
         }}
       />
-      {parentNode.type === "chance" && parentNode.childIds.length === 2 && Math.abs(missing - (node.probability ?? 0)) > 0.001 && (
-        <button
-          type="button"
-          className="inline-link-button"
-          onClick={() => onUpdate({ probability: missing })}
-        >
-          Completar restante: {(missing * 100).toFixed(1)}%
-        </button>
-      )}
+      {parentNode.type === "chance" &&
+        parentNode.childIds.length === 2 &&
+        Math.abs(missing - (node.probability ?? 0)) > 0.001 && (
+          <button
+            type="button"
+            className="inline-link-button"
+            onClick={() => onUpdate({ probability: missing })}
+          >
+            Completar restante: {(missing * 100).toFixed(1)}%
+          </button>
+        )}
     </div>
   );
 }
@@ -262,10 +281,12 @@ function VanCalculator({
   state,
   dispatchVan,
   onUse,
+  onClose,
 }: {
   state: VanState;
   dispatchVan: React.Dispatch<VanAction>;
   onUse: () => void;
+  onClose: () => void;
 }) {
   const inversionId = useId();
   const flujoId = useId();
@@ -273,10 +294,10 @@ function VanCalculator({
   const tasaId = useId();
 
   return (
-    <div className="van-calculator">
-      <h5>Calculadora VAN rapida</h5>
+    <div className="van-calculator" role="region" aria-label="Calculadora rápida de VAN">
+      <h3>Calculadora VAN rápida</h3>
       <div className="field-row">
-        <Field id={inversionId} label="Inversion">
+        <Field id={inversionId} label="Inversión">
           <input
             id={inversionId}
             type="number"
@@ -296,7 +317,7 @@ function VanCalculator({
         </Field>
       </div>
       <div className="field-row">
-        <Field id={aniosId} label="Anios">
+        <Field id={aniosId} label="Años">
           <input
             id={aniosId}
             type="number"
@@ -317,9 +338,14 @@ function VanCalculator({
         </Field>
       </div>
       <div className="van-result">VAN: ${calculateVan(state).toLocaleString("es-AR")}</div>
-      <button className="btn-create decision btn-compact" type="button" onClick={onUse}>
-        Usar este VAN
-      </button>
+      <div style={{ display: "flex", gap: 6, marginTop: 8 }}>
+        <button type="button" className="path-card primary btn-compact" onClick={onUse} style={{ minHeight: 32, padding: "6px 12px" }}>
+          <span className="title" style={{ fontSize: 12 }}>Usar este VAN</span>
+        </button>
+        <button type="button" className="inline-link-button" onClick={onClose}>
+          Cerrar
+        </button>
+      </div>
     </div>
   );
 }
@@ -332,12 +358,23 @@ function CustomFields({
   onUpdate: (customFields: TreeNode["customFields"]) => void;
 }) {
   const headingId = useId();
+  const newFieldId = useId();
+  const [newName, setNewName] = useState("");
+  const [showNew, setShowNew] = useState(false);
 
   const suggestions: string[] = [];
   for (const suggestion of CUSTOM_FIELD_SUGGESTIONS) {
     if (!(node.customFields ?? {})[suggestion]) suggestions.push(suggestion);
     if (suggestions.length === 3) break;
   }
+
+  const commitNew = () => {
+    const trimmed = newName.trim();
+    if (!trimmed) return;
+    onUpdate({ ...(node.customFields ?? {}), [trimmed]: "" });
+    setNewName("");
+    setShowNew(false);
+  };
 
   return (
     <div className="field custom-fields" role="group" aria-labelledby={headingId}>
@@ -360,7 +397,7 @@ function CustomFields({
             />
             <button
               type="button"
-              className="delete custom-field-delete"
+              className="custom-field-delete"
               onClick={() => {
                 const nextFields = { ...node.customFields };
                 delete nextFields[key];
@@ -381,23 +418,55 @@ function CustomFields({
           <button
             key={suggestion}
             type="button"
-            className="btn-create example btn-compact"
+            className="inline-link-button"
             onClick={() => onUpdate({ ...(node.customFields ?? {}), [suggestion]: "" })}
           >
             + {suggestion}
           </button>
         ))}
-        <button
-          type="button"
-          className="btn-create example btn-compact"
-          onClick={() => {
-            const name = prompt("Nombre del campo:");
-            if (name?.trim()) onUpdate({ ...(node.customFields ?? {}), [name.trim()]: "" });
-          }}
-        >
-          + Otro
-        </button>
+        {!showNew && (
+          <button type="button" className="inline-link-button" onClick={() => setShowNew(true)}>
+            + Otro
+          </button>
+        )}
       </div>
+      {showNew && (
+        <div className="custom-field-new">
+          <label htmlFor={newFieldId} className="sr-only" style={{ position: "absolute", left: -9999 }}>
+            Nombre del campo nuevo
+          </label>
+          <input
+            id={newFieldId}
+            type="text"
+            value={newName}
+            placeholder="Nombre del campo"
+            onChange={(e) => setNewName(e.target.value)}
+            onKeyDown={(e) => {
+              if (e.key === "Enter") {
+                e.preventDefault();
+                commitNew();
+              } else if (e.key === "Escape") {
+                setNewName("");
+                setShowNew(false);
+              }
+            }}
+            autoFocus
+          />
+          <button type="button" className="inline-link-button" onClick={commitNew}>
+            Agregar
+          </button>
+          <button
+            type="button"
+            className="inline-link-button"
+            onClick={() => {
+              setNewName("");
+              setShowNew(false);
+            }}
+          >
+            Cancelar
+          </button>
+        </div>
+      )}
     </div>
   );
 }
@@ -423,9 +492,10 @@ export function NodeEditor() {
   if (!node) return null;
 
   const parentNode = node.parentId ? state.tree.nodes[node.parentId] : null;
-  const siblingProbSum = parentNode?.type === "chance"
-    ? parentNode.childIds.reduce((sum, id) => sum + (state.tree.nodes[id]?.probability ?? 0), 0)
-    : null;
+  const siblingProbSum =
+    parentNode?.type === "chance"
+      ? parentNode.childIds.reduce((sum, id) => sum + (state.tree.nodes[id]?.probability ?? 0), 0)
+      : null;
 
   return (
     <div className="node-editor">
@@ -439,7 +509,7 @@ export function NodeEditor() {
           onChange={(e) => updateNode(node.id, { label: e.target.value })}
           placeholder="Ej: Prueba de hermeticidad"
         />
-        <div className="hint">Nombre del paso o estado. No uses este campo para Si/No; eso va en la rama.</div>
+        <div className="hint">Nombre del paso o estado. No uses este campo para Sí/No; eso va en la rama.</div>
       </Field>
 
       <IncomingBranchFields
@@ -463,21 +533,37 @@ export function NodeEditor() {
       {parentNode && (
         <div className="field insert-step">
           <div className="field-label">Insertar paso entre medio</div>
-          <div className="hint">Usalo cuando una rama no termina aca y necesitás agregar otra decision o incertidumbre antes de este nodo.</div>
+          <div className="hint">
+            Usalo cuando una rama no termina acá y necesitás agregar otra decisión o incertidumbre antes de este nodo.
+          </div>
           <div className="insert-step-actions">
             <button
               type="button"
-              className="btn-create example btn-compact"
-              onClick={() => dispatch({ type: "INSERT_INTERMEDIATE_NODE", nodeId: node.id, nodeType: "chance", label: "Nueva incertidumbre" })}
+              className="inline-link-button"
+              onClick={() =>
+                dispatch({
+                  type: "INSERT_INTERMEDIATE_NODE",
+                  nodeId: node.id,
+                  nodeType: "chance",
+                  label: "Nueva incertidumbre",
+                })
+              }
             >
               + Incertidumbre
             </button>
             <button
               type="button"
-              className="btn-create example btn-compact"
-              onClick={() => dispatch({ type: "INSERT_INTERMEDIATE_NODE", nodeId: node.id, nodeType: "decision", label: "Nueva decision" })}
+              className="inline-link-button"
+              onClick={() =>
+                dispatch({
+                  type: "INSERT_INTERMEDIATE_NODE",
+                  nodeId: node.id,
+                  nodeType: "decision",
+                  label: "Nueva decisión",
+                })
+              }
             >
-              + Decision
+              + Decisión
             </button>
           </div>
         </div>
@@ -488,7 +574,11 @@ export function NodeEditor() {
           id={costId}
           type="number"
           value={node.cost ?? ""}
-          onChange={(e) => updateNode(node.id, { cost: Number.isNaN(parseFloat(e.target.value)) ? null : parseFloat(e.target.value) })}
+          onChange={(e) =>
+            updateNode(node.id, {
+              cost: Number.isNaN(parseFloat(e.target.value)) ? null : parseFloat(e.target.value),
+            })
+          }
           placeholder="Opcional"
           step="10000"
         />
@@ -516,9 +606,9 @@ export function NodeEditor() {
               step="10000"
             />
             <div className="hint">
-              Ingresa el VAN terminal o el resultado directo. El arbol recalcula solo y al dibujarlo en Excel queda reflejado en el diagrama.{" "}
+              Ingresá el VAN terminal o el resultado directo. El árbol recalcula solo y al dibujarlo en Excel queda reflejado.{" "}
               <button type="button" className="inline-link-button" onClick={() => setShowVan((open) => !open)}>
-                {showVan ? "Cerrar" : "Calcular VAN"}
+                {showVan ? "Cerrar calculadora" : "Calcular VAN"}
               </button>
             </div>
           </Field>
@@ -531,6 +621,7 @@ export function NodeEditor() {
                 updateNode(node.id, { payoff: calculateVan(vanState) });
                 setShowVan(false);
               }}
+              onClose={() => setShowVan(false)}
             />
           )}
         </>
@@ -538,17 +629,16 @@ export function NodeEditor() {
 
       {node.expectedValue !== null && (
         <div className="field expected-value-field">
-          <div className="field-label">{state.tree.metadata.mode === "minimize" ? "Costo esperado" : "Valor esperado"}</div>
+          <div className="field-label">
+            {state.tree.metadata.mode === "minimize" ? "Costo esperado" : "Valor esperado"}
+          </div>
           <div className={`ev-badge ${node.expectedValue >= 0 ? "positive" : "negative"}`}>
             ${node.expectedValue.toLocaleString("es-AR", { maximumFractionDigits: 0 })}
           </div>
         </div>
       )}
 
-      <CustomFields
-        node={node}
-        onUpdate={(customFields) => updateNode(node.id, { customFields })}
-      />
+      <CustomFields node={node} onUpdate={(customFields) => updateNode(node.id, { customFields })} />
     </div>
   );
 }
