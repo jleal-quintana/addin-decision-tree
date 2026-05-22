@@ -324,24 +324,12 @@ function IncomingBranchFields({
   siblingProbSum: number | null;
   onUpdate: (updates: NodeUpdates) => void;
 }) {
-  const branchId = useId();
-  if (!parentNode) return null;
+  if (!parentNode || parentNode.type !== "chance") return null;
   const missing =
     siblingProbSum === null ? 0 : Math.max(0, 1 - (siblingProbSum - (node.probability ?? 0)));
 
   return (
     <div className="branch-editor">
-      <div className="field-label">Rama que llega a este nodo</div>
-      <div className="hint branch-help">La rama dice qué pasó; el nodo dice qué viene después.</div>
-      <Field id={branchId} label="Texto de la rama">
-        <input
-          id={branchId}
-          type="text"
-          value={node.branchLabel ?? ""}
-          onChange={(e) => onUpdate({ branchLabel: e.target.value || null })}
-          placeholder="Ej: No desplaza, Positiva, Continuar"
-        />
-      </Field>
       <ProbabilityField
         node={node}
         parentNode={parentNode}
@@ -350,16 +338,15 @@ function IncomingBranchFields({
           if (nodeId === node.id) onUpdate({ probability });
         }}
       />
-      {parentNode.type === "chance" &&
-        Math.abs(missing - (node.probability ?? 0)) > 0.001 && (
-          <button
-            type="button"
-            className="field-completer"
-            onClick={() => onUpdate({ probability: missing })}
-          >
-            Completar restante: {(missing * 100).toFixed(1)}%
-          </button>
-        )}
+      {Math.abs(missing - (node.probability ?? 0)) > 0.001 && (
+        <button
+          type="button"
+          className="field-completer"
+          onClick={() => onUpdate({ probability: missing })}
+        >
+          Completar restante: {(missing * 100).toFixed(1)}%
+        </button>
+      )}
     </div>
   );
 }
@@ -591,12 +578,12 @@ export function NodeEditor() {
 
   if (!node) return null;
 
-  const hasRamaStep = parentNode !== null;
+  const hasRamaStep = parentNode?.type === "chance";
 
   const steps: Array<{ id: WizardStep; label: string }> = [
     { id: "identidad", label: "Identidad" },
   ];
-  if (hasRamaStep) steps.push({ id: "rama", label: "Rama" });
+  if (hasRamaStep) steps.push({ id: "rama", label: "Probabilidad" });
   steps.push({ id: "valores", label: "Valores" });
 
   const currentStep: WizardStep = steps.some((s) => s.id === step) ? step : "identidad";
@@ -633,44 +620,6 @@ export function NodeEditor() {
               <TypeSelector nodeType={node.type} onChange={(type) => updateNode(node.id, { type })} />
             </div>
 
-            {parentNode && (
-              <div className="field insert-step">
-                <div className="field-label">Insertar paso entre medio</div>
-                <div className="hint">
-                  Usalo cuando una rama no termina acá y necesitás agregar otra decisión o incertidumbre antes de este nodo.
-                </div>
-                <div className="insert-step-actions">
-                  <button
-                    type="button"
-                    className="inline-link-button"
-                    onClick={() =>
-                      dispatch({
-                        type: "INSERT_INTERMEDIATE_NODE",
-                        nodeId: node.id,
-                        nodeType: "chance",
-                        label: "Nueva incertidumbre",
-                      })
-                    }
-                  >
-                    + Incertidumbre
-                  </button>
-                  <button
-                    type="button"
-                    className="inline-link-button"
-                    onClick={() =>
-                      dispatch({
-                        type: "INSERT_INTERMEDIATE_NODE",
-                        nodeId: node.id,
-                        nodeType: "decision",
-                        label: "Nueva decisión",
-                      })
-                    }
-                  >
-                    + Decisión
-                  </button>
-                </div>
-              </div>
-            )}
           </>
         )}
 

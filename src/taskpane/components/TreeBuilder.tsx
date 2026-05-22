@@ -1,4 +1,4 @@
-import React, { memo, useCallback } from "react";
+import React, { memo, useCallback, useState } from "react";
 import { useTree } from "../context/TreeContext";
 import { NodeType, TreeNode } from "../../models/types";
 import {
@@ -8,6 +8,17 @@ import {
   vacaMuertaDevelopmentExample,
 } from "../../engine/Examples";
 import type { DrawTreeApi } from "../hooks/useDrawTree";
+import { ConfirmDialog } from "./ConfirmDialog";
+
+function countSubtree(nodes: Record<string, TreeNode>, rootId: string): number {
+  const node = nodes[rootId];
+  if (!node) return 0;
+  let total = 1;
+  for (const childId of node.childIds) {
+    total += countSubtree(nodes, childId);
+  }
+  return total;
+}
 
 interface TreeBuilderProps {
   drawApi?: DrawTreeApi;
@@ -46,6 +57,7 @@ function NodeItem({ node, depth }: { node: TreeNode; depth: number }) {
   const tree = state.tree.nodes;
   const isSelected = state.selectedNodeId === node.id;
   const parentNode = node.parentId ? tree[node.parentId] : null;
+  const [showDeleteConfirm, setShowDeleteConfirm] = useState(false);
 
   const handleSelect = useCallback(() => {
     dispatch({ type: "SELECT_NODE", nodeId: node.id });
@@ -73,9 +85,20 @@ function NodeItem({ node, depth }: { node: TreeNode; depth: number }) {
     [dispatch, node.id]
   );
 
-  const handleDelete = useCallback(() => {
+  const requestDelete = useCallback(() => {
+    if (node.childIds.length === 0) {
+      dispatch({ type: "REMOVE_NODE", nodeId: node.id });
+      return;
+    }
+    setShowDeleteConfirm(true);
+  }, [dispatch, node.childIds.length, node.id]);
+
+  const confirmDelete = useCallback(() => {
     dispatch({ type: "REMOVE_NODE", nodeId: node.id });
+    setShowDeleteConfirm(false);
   }, [dispatch, node.id]);
+
+  const subtreeSize = node.childIds.length > 0 ? countSubtree(tree, node.id) - 1 : 0;
 
   const parts: string[] = [];
   if (node.probability !== null && node.probability > 0 && parentNode?.type === "chance") {
@@ -171,7 +194,7 @@ function NodeItem({ node, depth }: { node: TreeNode; depth: number }) {
             className="delete"
             onClick={(e) => {
               e.stopPropagation();
-              handleDelete();
+              requestDelete();
             }}
             aria-label="Eliminar nodo"
             title="Eliminar"
@@ -191,6 +214,23 @@ function NodeItem({ node, depth }: { node: TreeNode; depth: number }) {
         const child = tree[childId];
         return child ? <NodeItem key={childId} node={child} depth={depth + 1} /> : null;
       })}
+
+      <ConfirmDialog
+        open={showDeleteConfirm}
+        title="¿Eliminar este nodo y sus ramas?"
+        body={
+          <>
+            <p>
+              <strong>{node.label}</strong> tiene {subtreeSize} {subtreeSize === 1 ? "nodo hijo" : "nodos hijos"} que también se eliminan.
+            </p>
+            <p>Esta acción no se puede deshacer.</p>
+          </>
+        }
+        confirmLabel="Eliminar"
+        destructive
+        onConfirm={confirmDelete}
+        onCancel={() => setShowDeleteConfirm(false)}
+      />
     </>
   );
 }
@@ -214,9 +254,9 @@ export function TreeBuilder({ drawApi }: TreeBuilderProps = {}) {
   );
 
   const handleLoadExample = useCallback(
-    async (exampleFn: () => ReturnType<typeof workoverExample>, name: string) => {
+    (exampleFn: () => ReturnType<typeof workoverExample>, name: string) => {
       if (!drawApi) return;
-      await drawApi.loadAndDraw(exampleFn, name);
+      drawApi.loadExample(exampleFn, name);
     },
     [drawApi]
   );

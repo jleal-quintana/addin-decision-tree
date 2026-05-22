@@ -1,6 +1,7 @@
-import React, { RefObject, useEffect, useId, useRef } from "react";
+import React, { RefObject, useEffect, useId, useRef, useState } from "react";
 import { workoverExample } from "../../engine/Examples";
 import { useTree } from "../context/TreeContext";
+import { ConfirmDialog } from "./ConfirmDialog";
 
 interface HelpPopoverProps {
   open: boolean;
@@ -9,11 +10,12 @@ interface HelpPopoverProps {
 }
 
 export function HelpPopover({ open, onClose, triggerRef }: HelpPopoverProps) {
-  const { dispatch } = useTree();
+  const { state, dispatch } = useTree();
   const ref = useRef<HTMLDivElement>(null);
   const titleId = useId();
   const previouslyFocused = useRef<HTMLElement | null>(null);
   const onCloseRef = useRef(onClose);
+  const [showOverwriteConfirm, setShowOverwriteConfirm] = useState(false);
 
   useEffect(() => {
     onCloseRef.current = onClose;
@@ -50,9 +52,17 @@ export function HelpPopover({ open, onClose, triggerRef }: HelpPopoverProps) {
     if (prev && typeof prev.focus === "function") prev.focus();
   }, [open]);
 
-  const handleExample = () => {
+  const loadWorkover = () => {
     dispatch({ type: "LOAD_EXAMPLE", data: workoverExample() });
     onClose();
+  };
+
+  const handleExample = () => {
+    if (state.tree.rootId) {
+      setShowOverwriteConfirm(true);
+    } else {
+      loadWorkover();
+    }
   };
 
   if (!open) return null;
@@ -101,6 +111,24 @@ export function HelpPopover({ open, onClose, triggerRef }: HelpPopoverProps) {
       <button type="button" className="help-link" onClick={handleExample}>
         Ver ejemplo resuelto (Workover)
       </button>
+
+      <ConfirmDialog
+        open={showOverwriteConfirm}
+        title="¿Reemplazar el árbol actual?"
+        body={
+          <>
+            <p>Cargar el ejemplo de Workover reemplaza el árbol que tenés ahora.</p>
+            <p>Si querés conservarlo, primero tocá Guardar.</p>
+          </>
+        }
+        confirmLabel="Reemplazar y cargar"
+        destructive
+        onConfirm={() => {
+          setShowOverwriteConfirm(false);
+          loadWorkover();
+        }}
+        onCancel={() => setShowOverwriteConfirm(false)}
+      />
     </div>
   );
 }

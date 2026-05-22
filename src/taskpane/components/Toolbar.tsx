@@ -6,6 +6,7 @@ import { useTree } from "../context/TreeContext";
 import type { DrawTreeApi } from "../hooks/useDrawTree";
 import { DrawPreviewOverlay } from "./DrawPreviewOverlay";
 import { DrawLoadingOverlay } from "./DrawLoadingOverlay";
+import { ConfirmDialog } from "./ConfirmDialog";
 
 interface ToolbarProps {
   showToast: (title: string, body: string, intent?: "success" | "error" | "info") => void;
@@ -16,11 +17,12 @@ export function Toolbar({ showToast, drawApi }: ToolbarProps) {
   const { state, dispatch } = useTree();
   const [showExamples, setShowExamples] = useState(false);
   const [showPreview, setShowPreview] = useState(false);
+  const [showNewConfirm, setShowNewConfirm] = useState(false);
   const menuRef = useRef<HTMLDivElement>(null);
   const triggerRef = useRef<HTMLButtonElement>(null);
 
   const hasTree = !!state.tree.rootId;
-  const { drawing, renderError, drawCurrent, loadAndDraw, clearRenderError } = drawApi;
+  const { drawing, renderError, drawCurrent, loadExample, clearRenderError } = drawApi;
 
   const openPreview = useCallback(() => setShowPreview(true), []);
   const cancelPreview = useCallback(() => setShowPreview(false), []);
@@ -98,17 +100,27 @@ export function Toolbar({ showToast, drawApi }: ToolbarProps) {
     }
   }, [clearRenderError, showToast]);
 
-  const handleNew = useCallback(() => {
+  const requestNew = useCallback(() => {
+    if (hasTree) {
+      setShowNewConfirm(true);
+    } else {
+      dispatch({ type: "CLEAR_TREE" });
+      clearRenderError();
+    }
+  }, [clearRenderError, dispatch, hasTree]);
+
+  const confirmNew = useCallback(() => {
     dispatch({ type: "CLEAR_TREE" });
     clearRenderError();
+    setShowNewConfirm(false);
   }, [clearRenderError, dispatch]);
 
   const handleExample = useCallback(
-    async (exampleFn: () => ReturnType<typeof oilDrillingExample>, name: string) => {
+    (exampleFn: () => ReturnType<typeof oilDrillingExample>, name: string) => {
       setShowExamples(false);
-      await loadAndDraw(exampleFn, name);
+      loadExample(exampleFn, name);
     },
-    [loadAndDraw]
+    [loadExample]
   );
 
   const drawDisabled = drawing || !hasTree;
@@ -151,7 +163,7 @@ export function Toolbar({ showToast, drawApi }: ToolbarProps) {
         </button>
 
         <div className="toolbar-row-secondary">
-          <button type="button" className="btn btn-ghost" onClick={handleNew} disabled={drawing}>
+          <button type="button" className="btn btn-ghost" onClick={requestNew} disabled={drawing}>
             <svg viewBox="0 0 16 16" fill="none" stroke="currentColor" strokeWidth="1.5" aria-hidden="true">
               <path d="M3 2h7l3 3v9H3z" />
               <path d="M7 2v4h4" />
@@ -175,9 +187,10 @@ export function Toolbar({ showToast, drawApi }: ToolbarProps) {
           </button>
           <button type="button" className="btn btn-ghost" onClick={handleClear} disabled={drawing}>
             <svg viewBox="0 0 16 16" fill="none" stroke="currentColor" strokeWidth="1.5" aria-hidden="true">
-              <path d="M4 4l8 8M12 4l-8 8" />
+              <path d="M3 5h10M5 5v8a1 1 0 001 1h4a1 1 0 001-1V5" />
+              <path d="M6 5V3h4v2" />
             </svg>
-            Limpiar
+            Limpiar Excel
           </button>
           {hasTree && (
             <div style={{ position: "relative" }} ref={menuRef}>
@@ -240,6 +253,22 @@ export function Toolbar({ showToast, drawApi }: ToolbarProps) {
       )}
 
       <DrawLoadingOverlay active={drawing} />
+
+      <ConfirmDialog
+        open={showNewConfirm}
+        title="¿Empezar de cero?"
+        body={
+          <>
+            <p>Esto borra el árbol actual del taskpane.</p>
+            <p>El dibujo en Excel queda intacto hasta que toques Limpiar Excel.</p>
+          </>
+        }
+        confirmLabel="Empezar de cero"
+        cancelLabel="Cancelar"
+        destructive
+        onConfirm={confirmNew}
+        onCancel={() => setShowNewConfirm(false)}
+      />
     </div>
   );
 }

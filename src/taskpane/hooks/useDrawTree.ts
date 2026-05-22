@@ -10,7 +10,7 @@ export interface DrawTreeApi {
   drawing: boolean;
   renderError: string | null;
   drawCurrent: () => Promise<void>;
-  loadAndDraw: (exampleFn: () => DecisionTreeData, name: string) => Promise<void>;
+  loadExample: (exampleFn: () => DecisionTreeData, name: string) => void;
   clearRenderError: () => void;
 }
 
@@ -42,28 +42,18 @@ export function useDrawTree(showToast: ToastFn): DrawTreeApi {
     }
   }, [drawing, showToast, state.tree]);
 
-  const loadAndDraw = useCallback(
-    async (exampleFn: () => DecisionTreeData, name: string) => {
+  const loadExample = useCallback(
+    (exampleFn: () => DecisionTreeData, name: string) => {
       if (drawing) return;
       const data = exampleFn();
       dispatch({ type: "LOAD_EXAMPLE", data });
       setRenderError(null);
-      setDrawing(true);
-      try {
-        await renderTreeToExcel(data);
-        showToast("Listo", `${name} dibujado`, "success");
-      } catch (error) {
-        const message = error instanceof Error ? error.message : String(error);
-        setRenderError(message || "Error al dibujar ejemplo");
-        showToast("Error", message || "Error al dibujar ejemplo", "error");
-      } finally {
-        setDrawing(false);
-      }
+      showToast("Ejemplo cargado", `${name} · Revisalo y tocá Dibujar en Excel`, "info");
     },
     [dispatch, drawing, showToast]
   );
 
   const clearRenderError = useCallback(() => setRenderError(null), []);
 
-  return { drawing, renderError, drawCurrent, loadAndDraw, clearRenderError };
+  return { drawing, renderError, drawCurrent, loadExample, clearRenderError };
 }
