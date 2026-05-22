@@ -1,6 +1,70 @@
-import React, { useCallback, useId, useMemo, useReducer, useState } from "react";
+import React, { useCallback, useEffect, useId, useMemo, useReducer, useRef, useState } from "react";
 import { useTree } from "../context/TreeContext";
 import { NodeType, TreeNode } from "../../models/types";
+
+function formatProbabilityDraft(prob: number): string {
+  const pct = prob * 100;
+  if (!Number.isFinite(pct)) return "0";
+  return Number.isInteger(pct) ? `${pct}` : pct.toFixed(1).replace(".", ",");
+}
+
+function parseProbabilityDraft(raw: string): number | null {
+  const cleaned = raw.trim().replace(/[^\d.,-]/g, "").replace(",", ".");
+  if (cleaned === "" || cleaned === "-" || cleaned === ".") return null;
+  const parsed = parseFloat(cleaned);
+  if (!Number.isFinite(parsed)) return null;
+  return Math.min(Math.max(parsed / 100, 0), 1);
+}
+
+interface ProbabilityInputProps {
+  id?: string;
+  className?: string;
+  ariaLabel?: string;
+  probability: number;
+  onCommit: (probability: number) => void;
+}
+
+function ProbabilityInput({ id, className, ariaLabel, probability, onCommit }: ProbabilityInputProps) {
+  const [draft, setDraft] = useState<string>(() => formatProbabilityDraft(probability));
+  const focusedRef = useRef(false);
+
+  useEffect(() => {
+    if (!focusedRef.current) setDraft(formatProbabilityDraft(probability));
+  }, [probability]);
+
+  const commit = () => {
+    const parsed = parseProbabilityDraft(draft);
+    if (parsed === null) {
+      setDraft(formatProbabilityDraft(probability));
+      return;
+    }
+    onCommit(parsed);
+    setDraft(formatProbabilityDraft(parsed));
+  };
+
+  return (
+    <input
+      id={id}
+      type="text"
+      inputMode="decimal"
+      className={className}
+      value={draft}
+      onChange={(e) => setDraft(e.target.value)}
+      onFocus={(e) => {
+        focusedRef.current = true;
+        e.target.select();
+      }}
+      onBlur={() => {
+        focusedRef.current = false;
+        commit();
+      }}
+      onKeyDown={(e) => {
+        if (e.key === "Enter") (e.target as HTMLInputElement).blur();
+      }}
+      aria-label={ariaLabel}
+    />
+  );
+}
 
 const CUSTOM_FIELD_SUGGESTIONS = ["TIR", "Cash", "Precio petróleo", "OPEX", "CAPEX"];
 
@@ -219,14 +283,11 @@ function ProbabilityField({
   return (
     <Field id={id} label="Probabilidad de esta rama">
       <div className="field-row field-row-compact">
-        <input
+        <ProbabilityInput
           id={id}
-          type="number"
-          value={((node.probability ?? 0) * 100).toFixed(1)}
-          onChange={(e) => onCommit(node.id, parseNumber(e.target.value) / 100)}
-          min="0"
-          max="100"
-          step="5"
+          probability={node.probability ?? 0}
+          onCommit={(probability) => onCommit(node.id, probability)}
+          ariaLabel={`Probabilidad de ${node.branchLabel || node.label}`}
         />
         <div className="field-unit">%</div>
       </div>
@@ -274,15 +335,12 @@ function ChildProbabilities({
             <label htmlFor={inputId} className="inline-field-label">
               {child.branchLabel || child.label}
             </label>
-            <input
+            <ProbabilityInput
               id={inputId}
-              type="number"
-              value={((child.probability ?? 0) * 100).toFixed(1)}
-              onChange={(e) => onCommit(childId, parseNumber(e.target.value) / 100)}
-              min="0"
-              max="100"
-              step="5"
               className="probability-input"
+              probability={child.probability ?? 0}
+              onCommit={(probability) => onCommit(childId, probability)}
+              ariaLabel={`Probabilidad de ${child.branchLabel || child.label}`}
             />
             <span className="field-unit">%</span>
           </div>
