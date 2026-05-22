@@ -4,6 +4,8 @@ import { clearShapes } from "../../excel/ShapeManager";
 import { loadFromWorkbook, saveToWorkbook } from "../../excel/WorkbookState";
 import { useTree } from "../context/TreeContext";
 import type { DrawTreeApi } from "../hooks/useDrawTree";
+import { DrawPreviewOverlay } from "./DrawPreviewOverlay";
+import { DrawLoadingOverlay } from "./DrawLoadingOverlay";
 
 interface ToolbarProps {
   showToast: (title: string, body: string, intent?: "success" | "error" | "info") => void;
@@ -13,11 +15,23 @@ interface ToolbarProps {
 export function Toolbar({ showToast, drawApi }: ToolbarProps) {
   const { state, dispatch } = useTree();
   const [showExamples, setShowExamples] = useState(false);
+  const [showPreview, setShowPreview] = useState(false);
   const menuRef = useRef<HTMLDivElement>(null);
   const triggerRef = useRef<HTMLButtonElement>(null);
 
   const hasTree = !!state.tree.rootId;
   const { drawing, renderError, drawCurrent, loadAndDraw, clearRenderError } = drawApi;
+
+  const openPreview = useCallback(() => setShowPreview(true), []);
+  const cancelPreview = useCallback(() => setShowPreview(false), []);
+  const confirmDraw = useCallback(async () => {
+    setShowPreview(false);
+    await drawCurrent();
+  }, [drawCurrent]);
+
+  useEffect(() => {
+    if (drawing) setShowPreview(false);
+  }, [drawing]);
 
   useEffect(() => {
     if (!showExamples) return;
@@ -116,9 +130,9 @@ export function Toolbar({ showToast, drawApi }: ToolbarProps) {
         <button
           type="button"
           className="btn btn-hero"
-          onClick={drawCurrent}
+          onClick={openPreview}
           disabled={drawDisabled}
-          title={hasTree ? "Dibujar el árbol en Excel" : "Primero elegí un caso o cargá uno existente"}
+          title={hasTree ? "Previsualizar y dibujar el árbol en Excel" : "Primero elegí un caso o cargá uno existente"}
         >
           {drawing ? (
             <>
@@ -216,6 +230,16 @@ export function Toolbar({ showToast, drawApi }: ToolbarProps) {
           )}
         </div>
       </div>
+
+      {showPreview && hasTree && !drawing && (
+        <DrawPreviewOverlay
+          tree={state.tree}
+          onConfirm={confirmDraw}
+          onCancel={cancelPreview}
+        />
+      )}
+
+      <DrawLoadingOverlay active={drawing} />
     </div>
   );
 }

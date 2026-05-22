@@ -1,103 +1,7 @@
 import React, { useCallback, useMemo } from "react";
 import { useTree } from "../context/TreeContext";
-import { DecisionTreeData, NodeType } from "../../models/types";
-
-interface LaidOutNode {
-  id: string;
-  type: NodeType;
-  isOptimal: boolean;
-  x: number;
-  y: number;
-}
-
-interface LaidOutEdge {
-  fromId: string;
-  toId: string;
-  isOptimal: boolean;
-}
-
-interface MinimapLayout {
-  nodes: LaidOutNode[];
-  edges: LaidOutEdge[];
-}
-
-function layoutMinimap(
-  tree: DecisionTreeData,
-  width: number,
-  height: number,
-  pad = 14
-): MinimapLayout {
-  if (!tree.rootId) return { nodes: [], edges: [] };
-  const nodes = tree.nodes;
-  const root = nodes[tree.rootId];
-  if (!root) return { nodes: [], edges: [] };
-
-  const depths: Record<string, number> = {};
-  const leafOrder: string[] = [];
-  const visited = new Set<string>();
-
-  function dfs(id: string, depth: number) {
-    if (visited.has(id)) return;
-    visited.add(id);
-    depths[id] = depth;
-    const node = nodes[id];
-    if (!node) return;
-    if (node.childIds.length === 0) {
-      leafOrder.push(id);
-    } else {
-      for (const childId of node.childIds) {
-        dfs(childId, depth + 1);
-      }
-    }
-  }
-  dfs(tree.rootId, 0);
-
-  const positions: Record<string, number> = {};
-  const leafCount = leafOrder.length;
-  leafOrder.forEach((id, i) => {
-    positions[id] = leafCount > 1 ? i / (leafCount - 1) : 0.5;
-  });
-
-  function place(id: string): number {
-    if (positions[id] !== undefined) return positions[id];
-    const node = nodes[id];
-    if (!node) return 0.5;
-    const childYs = node.childIds.map((c) => place(c));
-    if (childYs.length === 0) {
-      positions[id] = 0.5;
-      return 0.5;
-    }
-    const y = (Math.min(...childYs) + Math.max(...childYs)) / 2;
-    positions[id] = y;
-    return y;
-  }
-  place(tree.rootId);
-
-  const depthValues = Object.values(depths);
-  const maxDepth = depthValues.length > 0 ? Math.max(...depthValues) : 0;
-  const innerW = width - pad * 2;
-  const innerH = height - pad * 2;
-
-  const laidOut: LaidOutNode[] = Object.entries(positions).map(([id, y]) => {
-    const node = nodes[id];
-    return {
-      id,
-      type: node.type,
-      isOptimal: node.isOptimal,
-      x: pad + (maxDepth === 0 ? innerW / 2 : (depths[id] / maxDepth) * innerW),
-      y: pad + y * innerH,
-    };
-  });
-
-  const edges: LaidOutEdge[] = [];
-  for (const node of Object.values(nodes)) {
-    if (node.parentId && positions[node.id] !== undefined && positions[node.parentId] !== undefined) {
-      edges.push({ fromId: node.parentId, toId: node.id, isOptimal: node.isOptimal });
-    }
-  }
-
-  return { nodes: laidOut, edges };
-}
+import { NodeType } from "../../models/types";
+import { layoutTreeCompact } from "../utils/treeLayout";
 
 interface MinimapShapeProps {
   x: number;
@@ -156,7 +60,7 @@ export function TreeMinimap() {
   const width = 320;
   const height = 110;
 
-  const layout = useMemo(() => layoutMinimap(tree, width, height), [tree]);
+  const layout = useMemo(() => layoutTreeCompact(tree, width, height, 14), [tree]);
 
   const handleSelect = useCallback(
     (nodeId: string) => {
@@ -168,7 +72,7 @@ export function TreeMinimap() {
   if (!tree.rootId || layout.nodes.length === 0) return null;
 
   const selectedId = state.selectedNodeId;
-  const positionsById = new Map(layout.nodes.map((n) => [n.id, n]));
+  const positionsById = layout.positionsById;
   const totalNodes = Object.keys(tree.nodes).length;
 
   return (
