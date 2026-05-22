@@ -8,8 +8,6 @@ type NodeUpdates = Partial<
   Pick<TreeNode, "label" | "branchLabel" | "type" | "payoff" | "probability" | "cost" | "time" | "customFields">
 >;
 
-type WizardStep = "identidad" | "rama" | "valores";
-
 type VanState = {
   inversion: number;
   flujo: number;
@@ -76,7 +74,15 @@ function Field({
   );
 }
 
-function EditorBreadcrumb({ node, tree }: { node: TreeNode; tree: Record<string, TreeNode> }) {
+function EditorBreadcrumb({
+  node,
+  tree,
+  onNavigate,
+}: {
+  node: TreeNode;
+  tree: Record<string, TreeNode>;
+  onNavigate: (nodeId: string) => void;
+}) {
   const chain: TreeNode[] = [];
   let current: TreeNode | null = node.parentId ? tree[node.parentId] : null;
   while (current) {
@@ -92,7 +98,14 @@ function EditorBreadcrumb({ node, tree }: { node: TreeNode; tree: Record<string,
           parent.label.length > 16 ? parent.label.slice(0, 15) + "…" : parent.label;
         return (
           <React.Fragment key={parent.id}>
-            <span className="editor-breadcrumb__item">{label}</span>
+            <button
+              type="button"
+              className="editor-breadcrumb__item editor-breadcrumb__item--link"
+              onClick={() => onNavigate(parent.id)}
+              title={`Ir a ${parent.label}`}
+            >
+              {label}
+            </button>
             <span className="editor-breadcrumb__sep" aria-hidden="true">
               ›
             </span>
@@ -104,7 +117,15 @@ function EditorBreadcrumb({ node, tree }: { node: TreeNode; tree: Record<string,
   );
 }
 
-function EditorHeader({ node, tree }: { node: TreeNode; tree: Record<string, TreeNode> }) {
+function EditorHeader({
+  node,
+  tree,
+  onNavigate,
+}: {
+  node: TreeNode;
+  tree: Record<string, TreeNode>;
+  onNavigate: (nodeId: string) => void;
+}) {
   const title = {
     decision: "Editar decisión",
     chance: "Editar incertidumbre",
@@ -127,46 +148,9 @@ function EditorHeader({ node, tree }: { node: TreeNode; tree: Record<string, Tre
         </svg>
       </span>
       <div className="editor-header__text">
-        <EditorBreadcrumb node={node} tree={tree} />
+        <EditorBreadcrumb node={node} tree={tree} onNavigate={onNavigate} />
         <h2>{title}</h2>
       </div>
-    </div>
-  );
-}
-
-function WizardTabs({
-  steps,
-  current,
-  onChange,
-}: {
-  steps: Array<{ id: WizardStep; label: string }>;
-  current: WizardStep;
-  onChange: (next: WizardStep) => void;
-}) {
-  return (
-    <div className="editor-steps" role="tablist" aria-label="Pasos del editor">
-      {steps.map((step, idx) => {
-        const active = step.id === current;
-        return (
-          <React.Fragment key={step.id}>
-            <button
-              type="button"
-              className={`editor-step ${active ? "active" : ""}`}
-              onClick={() => onChange(step.id)}
-              role="tab"
-              aria-selected={active}
-              id={`editor-step-${step.id}`}
-              aria-controls={`editor-step-panel-${step.id}`}
-            >
-              <span className="editor-step__num">{idx + 1}</span>
-              {step.label}
-            </button>
-            {idx < steps.length - 1 && (
-              <span className="editor-step__divider" aria-hidden="true" />
-            )}
-          </React.Fragment>
-        );
-      })}
     </div>
   );
 }
@@ -545,12 +529,26 @@ function CustomFields({
   );
 }
 
+function EditorSection({
+  title,
+  children,
+}: {
+  title: string;
+  children: React.ReactNode;
+}) {
+  return (
+    <section className="editor-section">
+      <h3 className="editor-section__title">{title}</h3>
+      <div className="editor-section__body">{children}</div>
+    </section>
+  );
+}
+
 export function NodeEditor() {
   const { state, dispatch } = useTree();
   const node = state.selectedNodeId ? state.tree.nodes[state.selectedNodeId] : null;
   const [showVan, setShowVan] = useState(false);
   const [vanState, dispatchVan] = useReducer(vanReducer, initialVanState);
-  const [step, setStep] = useState<WizardStep>("identidad");
   const labelId = useId();
   const costId = useId();
   const timeId = useId();
@@ -559,6 +557,13 @@ export function NodeEditor() {
   const updateNode = useCallback(
     (nodeId: string, updates: NodeUpdates) => {
       dispatch({ type: "UPDATE_NODE", nodeId, updates });
+    },
+    [dispatch]
+  );
+
+  const navigateToNode = useCallback(
+    (nodeId: string) => {
+      dispatch({ type: "SELECT_NODE", nodeId });
     },
     [dispatch]
   );
@@ -578,141 +583,120 @@ export function NodeEditor() {
 
   if (!node) return null;
 
-  const hasRamaStep = parentNode?.type === "chance";
-
-  const steps: Array<{ id: WizardStep; label: string }> = [
-    { id: "identidad", label: "Identidad" },
-  ];
-  if (hasRamaStep) steps.push({ id: "rama", label: "Probabilidad" });
-  steps.push({ id: "valores", label: "Valores" });
-
-  const currentStep: WizardStep = steps.some((s) => s.id === step) ? step : "identidad";
+  const hasProbabilitySection = parentNode?.type === "chance";
+  const evLabel = state.tree.metadata.mode === "minimize" ? "Costo esperado" : "Valor esperado";
 
   return (
     <div className="node-editor">
-      <EditorHeader node={node} tree={state.tree.nodes} />
+      <EditorHeader node={node} tree={state.tree.nodes} onNavigate={navigateToNode} />
 
-      <WizardTabs steps={steps} current={currentStep} onChange={setStep} />
+      <EditorSection title="Identidad">
+        <Field id={labelId} label="Nombre">
+          <input
+            id={labelId}
+            type="text"
+            value={node.label}
+            onChange={(e) => updateNode(node.id, { label: e.target.value })}
+            placeholder="Ej: Prueba de hermeticidad"
+          />
+          <div className="hint">
+            Nombre del paso o estado. Aparece en el dibujo de Excel.
+          </div>
+        </Field>
 
-      <div
-        className="editor-step-panel"
-        role="tabpanel"
-        id={`editor-step-panel-${currentStep}`}
-        aria-labelledby={`editor-step-${currentStep}`}
-      >
-        {currentStep === "identidad" && (
-          <>
-            <Field id={labelId} label="Nombre">
-              <input
-                id={labelId}
-                type="text"
-                value={node.label}
-                onChange={(e) => updateNode(node.id, { label: e.target.value })}
-                placeholder="Ej: Prueba de hermeticidad"
-              />
-              <div className="hint">
-                Nombre del paso o estado. No uses este campo para Sí/No; eso va en la rama.
-              </div>
-            </Field>
+        <div className="field">
+          <div className="field-label">Tipo</div>
+          <TypeSelector nodeType={node.type} onChange={(type) => updateNode(node.id, { type })} />
+        </div>
+      </EditorSection>
 
-            <div className="field">
-              <div className="field-label">Tipo</div>
-              <TypeSelector nodeType={node.type} onChange={(type) => updateNode(node.id, { type })} />
-            </div>
-
-          </>
-        )}
-
-        {currentStep === "rama" && parentNode && (
+      {hasProbabilitySection && parentNode && (
+        <EditorSection title="Probabilidad de esta rama">
           <IncomingBranchFields
             node={node}
             parentNode={parentNode}
             siblingProbSum={siblingProbSum}
             onUpdate={(updates) => updateNode(node.id, updates)}
           />
-        )}
+        </EditorSection>
+      )}
 
-        {currentStep === "valores" && (
+      <EditorSection title="Valores">
+        {node.type === "end" && (
           <>
-            {node.type === "end" && (
-              <>
-                <Field id={payoffId} label="Resultado ($)">
-                  <input
-                    id={payoffId}
-                    type="number"
-                    className="money"
-                    value={node.payoff ?? 0}
-                    onChange={(e) => updateNode(node.id, { payoff: parseNumber(e.target.value) })}
-                    step="10000"
-                  />
-                  <div className="hint">
-                    Ingresá el VAN terminal o el resultado directo. El árbol recalcula solo y al dibujarlo en Excel queda reflejado.{" "}
-                    <button type="button" className="inline-link-button" onClick={() => setShowVan((open) => !open)}>
-                      {showVan ? "Cerrar calculadora" : "Calcular VAN"}
-                    </button>
-                  </div>
-                </Field>
-
-                {showVan && (
-                  <VanCalculator
-                    state={vanState}
-                    dispatchVan={dispatchVan}
-                    onUse={() => {
-                      updateNode(node.id, { payoff: calculateVan(vanState) });
-                      setShowVan(false);
-                    }}
-                    onClose={() => setShowVan(false)}
-                  />
-                )}
-              </>
-            )}
-
-            <Field id={costId} label="Costo de rama ($)">
+            <Field id={payoffId} label="Resultado ($)">
               <input
-                id={costId}
+                id={payoffId}
                 type="number"
-                value={node.cost ?? ""}
-                onChange={(e) =>
-                  updateNode(node.id, {
-                    cost: Number.isNaN(parseFloat(e.target.value)) ? null : parseFloat(e.target.value),
-                  })
-                }
-                placeholder="Opcional"
+                className="money"
+                value={node.payoff ?? 0}
+                onChange={(e) => updateNode(node.id, { payoff: parseNumber(e.target.value) })}
                 step="10000"
               />
-            </Field>
-
-            <Field id={timeId} label="Tiempo">
-              <input
-                id={timeId}
-                type="text"
-                value={node.time ?? ""}
-                onChange={(e) => updateNode(node.id, { time: e.target.value || null })}
-                placeholder="Ej: 3 meses, 2 semanas"
-              />
-            </Field>
-
-            <ChildProbabilities
-              node={node}
-              nodes={state.tree.nodes}
-              onCommit={(nodeId, probability) => updateNode(nodeId, { probability })}
-            />
-
-            {node.expectedValue !== null && (
-              <div className="field expected-value-field">
-                <div className="field-label">
-                  {state.tree.metadata.mode === "minimize" ? "Costo esperado" : "Valor esperado"}
-                </div>
-                <div className={`ev-badge ${node.expectedValue >= 0 ? "positive" : "negative"}`}>
-                  ${node.expectedValue.toLocaleString("es-AR", { maximumFractionDigits: 0 })}
-                </div>
+              <div className="hint">
+                Ingresá el VAN terminal o el resultado directo.{" "}
+                <button type="button" className="inline-link-button" onClick={() => setShowVan((open) => !open)}>
+                  {showVan ? "Cerrar calculadora" : "Calcular VAN"}
+                </button>
               </div>
-            )}
+            </Field>
 
-            <CustomFields node={node} onUpdate={(customFields) => updateNode(node.id, { customFields })} />
+            {showVan && (
+              <VanCalculator
+                state={vanState}
+                dispatchVan={dispatchVan}
+                onUse={() => {
+                  updateNode(node.id, { payoff: calculateVan(vanState) });
+                  setShowVan(false);
+                }}
+                onClose={() => setShowVan(false)}
+              />
+            )}
           </>
         )}
-      </div>
+
+        <Field id={costId} label="Costo de rama ($)">
+          <input
+            id={costId}
+            type="number"
+            value={node.cost ?? ""}
+            onChange={(e) =>
+              updateNode(node.id, {
+                cost: Number.isNaN(parseFloat(e.target.value)) ? null : parseFloat(e.target.value),
+              })
+            }
+            placeholder="Opcional"
+            step="10000"
+          />
+        </Field>
+
+        <Field id={timeId} label="Tiempo">
+          <input
+            id={timeId}
+            type="text"
+            value={node.time ?? ""}
+            onChange={(e) => updateNode(node.id, { time: e.target.value || null })}
+            placeholder="Ej: 3 meses, 2 semanas"
+          />
+        </Field>
+
+        <ChildProbabilities
+          node={node}
+          nodes={state.tree.nodes}
+          onCommit={(nodeId, probability) => updateNode(nodeId, { probability })}
+        />
+
+        {node.expectedValue !== null && (
+          <div className="field expected-value-field">
+            <div className="field-label">{evLabel}</div>
+            <div className={`ev-badge ${node.expectedValue >= 0 ? "positive" : "negative"}`}>
+              ${node.expectedValue.toLocaleString("es-AR", { maximumFractionDigits: 0 })}
+            </div>
+          </div>
+        )}
+
+        <CustomFields node={node} onUpdate={(customFields) => updateNode(node.id, { customFields })} />
+      </EditorSection>
     </div>
   );
 }

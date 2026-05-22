@@ -948,80 +948,57 @@ body {
   max-width: 130px;
 }
 
+.editor-breadcrumb__item--link {
+  background: transparent;
+  border: 0;
+  padding: 0 2px;
+  color: var(--text-secondary);
+  font: inherit;
+  cursor: pointer;
+  text-decoration: underline dotted transparent;
+  text-underline-offset: 2px;
+  border-radius: 2px;
+  transition: color 0.12s ease, text-decoration-color 0.12s ease;
+}
+.editor-breadcrumb__item--link:hover,
+.editor-breadcrumb__item--link:focus-visible {
+  color: var(--qe-bosque);
+  text-decoration-color: currentColor;
+  outline: none;
+}
+
 .editor-breadcrumb__sep {
   color: var(--qe-beige);
   font-weight: 700;
 }
 
-/* Wizard tabs (Identidad / Rama / Valores) */
-.editor-steps {
-  display: flex;
-  align-items: center;
-  gap: 4px;
-  margin-bottom: 12px;
-  padding: 4px;
-  background: var(--bg);
-  border: 1px solid var(--border);
-  border-radius: var(--radius);
+/* Editor sections (replaces former wizard tabs) */
+.editor-section {
+  margin-bottom: 14px;
+  padding-bottom: 12px;
+  border-bottom: 1px dashed var(--border);
 }
 
-.editor-step {
-  display: inline-flex;
-  align-items: center;
-  gap: 6px;
-  padding: 6px 10px;
-  background: transparent;
-  border: 0;
-  border-radius: var(--radius-sm);
+.editor-section:last-child {
+  border-bottom: 0;
+  margin-bottom: 0;
+  padding-bottom: 0;
+}
+
+.editor-section__title {
   font-family: 'Montserrat', sans-serif;
-  font-size: 11px;
-  font-weight: 600;
-  color: var(--text-secondary);
-  cursor: pointer;
-  min-height: 28px;
-  letter-spacing: 0.1px;
-  flex: 1;
-  justify-content: center;
-  transition: background 0.12s ease, color 0.12s ease;
-}
-
-.editor-step:hover:not(.active) {
-  background: var(--bg-hover-soft);
-  color: var(--qe-bosque);
-}
-
-.editor-step.active {
-  background: var(--qe-verde);
-  color: var(--text-on-dark);
-}
-
-.editor-step__num {
-  display: inline-grid;
-  place-items: center;
-  width: 16px;
-  height: 16px;
-  border-radius: 50%;
-  background: rgba(0, 0, 0, 0.08);
   font-size: 10px;
   font-weight: 700;
-  font-family: 'Montserrat', sans-serif;
-  color: inherit;
+  color: var(--qe-verde);
+  letter-spacing: 1.2px;
+  text-transform: uppercase;
+  margin: 0 0 8px;
 }
 
-.editor-step.active .editor-step__num {
-  background: rgba(255, 255, 255, 0.25);
-}
-
-.editor-step__divider {
-  width: 6px;
-  height: 1px;
-  background: var(--border);
-  flex-shrink: 0;
-}
-
-.editor-step-panel {
+.editor-section__body {
   display: flex;
   flex-direction: column;
+  gap: 10px;
 }
 
 /* Probability bar — visualización inline de la suma del grupo */
