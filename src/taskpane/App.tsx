@@ -1,15 +1,17 @@
 import React, { Component, ReactNode, useCallback, useMemo, useRef, useState } from "react";
 import { isDebugEnabled } from "../debug/excelDiagnostics";
-import { validate } from "../models/DecisionTree";
 import { CalculationResults } from "./components/CalculationResults";
 import { DebugPanel } from "./components/DebugPanel";
 import { HelpPopover } from "./components/HelpPopover";
 import { NodeEditor } from "./components/NodeEditor";
+import { StatusStrip } from "./components/StatusStrip";
 import { Toolbar } from "./components/Toolbar";
 import { TreeBuilder } from "./components/TreeBuilder";
 import { TreePreview } from "./components/TreePreview";
+import { ValidationPanel } from "./components/ValidationPanel";
 import { useTree } from "./context/TreeContext";
 import { useDrawTree } from "./hooks/useDrawTree";
+import { buildValidationIssues } from "./utils/validationIssues";
 
 class ErrorBoundary extends Component<{ children: ReactNode }, { error: Error | null }> {
   state = { error: null as Error | null };
@@ -77,8 +79,8 @@ function AppInner() {
   const rawTab: string = state.activeTab;
   const activeTab: "build" | "results" = rawTab === "results" ? "results" : "build";
 
-  const validationErrors = useMemo(
-    () => (state.tree.rootId ? validate(state.tree) : []),
+  const validationIssues = useMemo(
+    () => (state.tree.rootId ? buildValidationIssues(state.tree) : []),
     [state.tree]
   );
 
@@ -152,25 +154,7 @@ function AppInner() {
 
       <HelpPopover open={helpOpen} onClose={() => setHelpOpen(false)} triggerRef={helpBtnRef} />
 
-      {validationErrors.length > 0 && (
-        <div className="validation-banner" role="alert">
-          <svg width="16" height="16" viewBox="0 0 16 16" fill="none" aria-hidden="true">
-            <path
-              d="M8 1.5L1 14h14L8 1.5z"
-              stroke="currentColor"
-              strokeWidth="1.4"
-              strokeLinejoin="round"
-            />
-            <path d="M8 6v4" stroke="currentColor" strokeWidth="1.4" strokeLinecap="round" />
-            <circle cx="8" cy="12" r="0.7" fill="currentColor" />
-          </svg>
-          <span>
-            {validationErrors.length === 1
-              ? validationErrors[0].message
-              : `${validationErrors.length} validaciones pendientes: ${validationErrors[0].message}`}
-          </span>
-        </div>
-      )}
+      {state.tree.rootId && <StatusStrip issues={validationIssues} />}
 
       <Toolbar showToast={showToast} drawApi={drawApi} />
 
@@ -200,6 +184,7 @@ function AppInner() {
       >
         {activeTab === "build" && (
           <>
+            {validationIssues.length > 0 && <ValidationPanel issues={validationIssues} />}
             <TreeBuilder drawApi={drawApi} />
             {state.selectedNodeId && <NodeEditor />}
             <TreePreview />
