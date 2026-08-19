@@ -124,15 +124,16 @@ El campo `mode` en el código puede quedarse como `"maximize" | "minimize"` por 
 
 ### 4.1 Empty state (primera experiencia)
 
-No dos botones genéricos "Maximizar / Minimizar". En su lugar: una pregunta y tres caminos nombrados según el caso.
+La primera pantalla propone una única acción dominante: **Empezar paso a paso**. No muestra tabs, toolbar ni decisiones técnicas hasta que exista un árbol. Cargar desde el libro, usar el editor avanzado y abrir ejemplos resueltos quedan como acciones secundarias y progresivamente reveladas.
 
-> **¿Qué estás evaluando?**
->
-> - **Intervención en pozo** (workover, recompletación, estimulación) · *Modo Costo*
-> - **Inversión o perforación** (nuevo pozo, adquisición) · *Modo Valor*
-> - **Desde cero** — elegir modo manualmente
+El asistente crea un árbol real, no un tutorial separado, mediante cuatro preguntas:
 
-Cada opción es una card con título, subtítulo explicando en una línea qué caso cubre, y chip de modo. Debajo: *"¿Querés ver un ejemplo resuelto primero?"* con los 3 ejemplos actuales (workover, perforación, lanzamiento).
+1. **La decisión:** pregunta principal, nombre opcional y criterio (mayor valor o menor costo).
+2. **Las alternativas:** dos opciones como mínimo, con nombres editables.
+3. **Los resultados:** para cada alternativa, resultado conocido o escenarios inciertos con probabilidad y valor/costo. Las probabilidades se rebalancean a 100%.
+4. **Revisión:** comparación del valor esperado y recomendación preliminar antes de crear el árbol editable.
+
+El modo avanzado sigue disponible para usuarios expertos que quieran comenzar desde un nodo raíz vacío. Los ejemplos se muestran dentro de un disclosure cerrado para que ayuden sin competir con el flujo principal.
 
 ### 4.2 Armar (edición de nodos)
 

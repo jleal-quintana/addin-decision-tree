@@ -1,6 +1,6 @@
-import React, { memo, useCallback, useState } from "react";
+import React, { memo, useCallback, useEffect, useState } from "react";
 import { useTree } from "../context/TreeContext";
-import { NodeType, TreeNode } from "../../models/types";
+import { DecisionTreeData, NodeType, TreeNode } from "../../models/types";
 import {
   workoverExample,
   oilDrillingExample,
@@ -14,6 +14,7 @@ import {
 import type { DrawTreeApi } from "../hooks/useDrawTree";
 import type { NodeIssueSummary } from "../utils/validationIssues";
 import { ConfirmDialog } from "./ConfirmDialog";
+import { GuidedTreeWizard } from "./GuidedTreeWizard";
 
 function countSubtree(nodes: Record<string, TreeNode>, rootId: string): number {
   const node = nodes[rootId];
@@ -28,6 +29,7 @@ function countSubtree(nodes: Record<string, TreeNode>, rootId: string): number {
 interface TreeBuilderProps {
   drawApi?: DrawTreeApi;
   issuesByNode?: Map<string, NodeIssueSummary>;
+  onLoadWorkbook?: () => Promise<void>;
 }
 
 const NodeBadge = memo(function NodeBadge({ type, isOptimal }: { type: NodeType; isOptimal?: boolean }) {
@@ -258,10 +260,15 @@ function NodeItem({
   );
 }
 
-export function TreeBuilder({ drawApi, issuesByNode }: TreeBuilderProps = {}) {
+export function TreeBuilder({ drawApi, issuesByNode, onLoadWorkbook }: TreeBuilderProps = {}) {
   const { state, dispatch } = useTree();
   const { tree } = state;
   const loading = drawApi?.drawing ?? false;
+  const [startMode, setStartMode] = useState<"welcome" | "guided" | "advanced">("welcome");
+
+  useEffect(() => {
+    if (tree.rootId) setStartMode("welcome");
+  }, [tree.rootId]);
 
   const handleCreateTree = useCallback(
     (mode: "maximize" | "minimize", rootLabel: string) => {
@@ -284,9 +291,58 @@ export function TreeBuilder({ drawApi, issuesByNode }: TreeBuilderProps = {}) {
     [drawApi]
   );
 
+  const handleGuidedComplete = useCallback(
+    (data: DecisionTreeData) => {
+      dispatch({ type: "SET_TREE", data });
+    },
+    [dispatch]
+  );
+
   if (!tree.rootId) {
+    if (startMode === "guided") {
+      return (
+        <GuidedTreeWizard
+          onCancel={() => setStartMode("welcome")}
+          onComplete={handleGuidedComplete}
+        />
+      );
+    }
+
+    if (startMode === "advanced") {
+      return (
+        <section className="advanced-start" aria-labelledby="advanced-start-title">
+          <button type="button" className="guided-exit" onClick={() => setStartMode("welcome")}>
+            Volver
+          </button>
+          <div className="guided-step-label">Modo avanzado</div>
+          <h2 id="advanced-start-title">Crear la estructura manualmente</h2>
+          <p>Elegí el criterio inicial. Después vas a poder agregar cualquier tipo de nodo.</p>
+          <div className="advanced-start-actions">
+            <button
+              type="button"
+              className="advanced-start-option"
+              disabled={loading}
+              onClick={() => handleCreateTree("maximize", "Decisión principal")}
+            >
+              <strong>Árbol de valor</strong>
+              <span>Gana el mayor valor esperado</span>
+            </button>
+            <button
+              type="button"
+              className="advanced-start-option"
+              disabled={loading}
+              onClick={() => handleCreateTree("minimize", "Decisión principal")}
+            >
+              <strong>Árbol de costo</strong>
+              <span>Gana el menor costo esperado</span>
+            </button>
+          </div>
+        </section>
+      );
+    }
+
     return (
-      <div className="empty-state">
+      <section className="guided-welcome" aria-labelledby="guided-welcome-title">
         <div className="icon-row" aria-hidden="true">
           <span className="shape">
             <svg viewBox="0 0 24 24" fill="none">
@@ -305,102 +361,58 @@ export function TreeBuilder({ drawApi, issuesByNode }: TreeBuilderProps = {}) {
           </span>
         </div>
 
-        <h3>¿Qué estás evaluando?</h3>
-        <p className="lead">
-          Elegí un caso para empezar. El modo se configura solo; después podés ajustarlo.
-        </p>
+        <h2 id="guided-welcome-title">Crear un análisis de decisión</h2>
+        <p className="lead">Respondé cuatro preguntas y obtené un primer árbol calculado.</p>
+        <button
+          type="button"
+          className="btn btn-hero guided-start"
+          disabled={loading}
+          onClick={() => setStartMode("guided")}
+        >
+          Empezar paso a paso
+        </button>
+        <p className="guided-time">Tiempo estimado: 3 minutos</p>
 
-        <div className="actions">
-          <button
-            type="button"
-            className="path-card primary"
-            disabled={loading}
-            onClick={() => handleCreateTree("minimize", "Intervención del pozo")}
-          >
-            <span className="title">Intervención en pozo</span>
-            <span className="desc">Workover, recompletación, estimulación · Modo Costo</span>
+        <div className="guided-secondary-actions">
+          <button type="button" onClick={() => setStartMode("advanced")} disabled={loading}>
+            Usar el editor avanzado
           </button>
-          <button
-            type="button"
-            className="path-card"
-            disabled={loading}
-            onClick={() => handleCreateTree("maximize", "Inversión")}
-          >
-            <span className="title">Inversión o perforación</span>
-            <span className="desc">Nuevo pozo, adquisición, expansión · Modo Valor</span>
-          </button>
-          <button
-            type="button"
-            className="path-card"
-            disabled={loading}
-            onClick={() => handleCreateTree("maximize", "Decisión principal")}
-          >
-            <span className="title">Desde cero</span>
-            <span className="desc">Empezás con un árbol vacío y elegís el modo</span>
-          </button>
+          {onLoadWorkbook && (
+            <button type="button" onClick={() => void onLoadWorkbook()} disabled={loading}>
+              Cargar desde este libro
+            </button>
+          )}
         </div>
 
-        <div className="empty-divider">o un ejemplo resuelto</div>
-
-        <div className="empty-examples">
-          <button
-            type="button"
-            className="path-card example"
-            disabled={loading}
-            onClick={() => handleLoadExample(workoverExample, "Workover de pozo")}
-          >
-            <span className="title">Workover de pozo</span>
-            <span className="desc">Intervención · Modo Costo</span>
-          </button>
-          <button
-            type="button"
-            className="path-card example"
-            disabled={loading}
-            onClick={() => handleLoadExample(vacaMuertaDevelopmentExample, "Desarrollo Vaca Muerta")}
-          >
-            <span className="title">Desarrollo Vaca Muerta</span>
-            <span className="desc">Pilotos, áreas de desarrollo · Modo Valor</span>
-          </button>
-          <button
-            type="button"
-            className="path-card example"
-            disabled={loading}
-            onClick={() => handleLoadExample(oilDrillingExample, "Perforación de pozo")}
-          >
-            <span className="title">Perforación de pozo</span>
-            <span className="desc">Inversión · Modo Valor</span>
-          </button>
-          <button
-            type="button"
-            className="path-card example"
-            disabled={loading}
-            onClick={() => handleLoadExample(productLaunchExample, "Lanzamiento de producto")}
-          >
-            <span className="title">Lanzamiento de producto</span>
-            <span className="desc">Inversión · Modo Valor</span>
-          </button>
-          <button
-            type="button"
-            className="path-card example"
-            disabled={loading}
-            onClick={() => handleLoadExample(capacityDecisionExample, "Capacidad de planta")}
-            title="Caso clásico de Krajewski/Ritzman: elegir el tamaño de planta frente a demanda incierta."
-          >
-            <span className="title">Capacidad de planta</span>
-            <span className="desc">Krajewski · Modo Valor</span>
-          </button>
-          <button
-            type="button"
-            className="path-card example"
-            disabled={loading}
-            onClick={() => handleLoadExample(threeProposalsExample, "Tres propuestas comerciales")}
-            title="Ejemplo académico clásico: elegir entre tres alternativas con mismo mercado incierto."
-          >
-            <span className="title">Tres propuestas</span>
-            <span className="desc">Académico · Modo Valor</span>
-          </button>
-        </div>
-      </div>
+        <details className="guided-examples">
+          <summary>Ver ejemplos resueltos</summary>
+          <div className="guided-example-list">
+            {[
+              ["Workover de pozo", "Costo", workoverExample],
+              ["Desarrollo Vaca Muerta", "Valor", vacaMuertaDevelopmentExample],
+              ["Perforación de pozo", "Valor", oilDrillingExample],
+              ["Lanzamiento de producto", "Valor", productLaunchExample],
+              ["Capacidad de planta", "Valor", capacityDecisionExample],
+              ["Tres propuestas", "Valor", threeProposalsExample],
+            ].map(([label, criterion, example]) => (
+              <button
+                key={String(label)}
+                type="button"
+                disabled={loading}
+                onClick={() =>
+                  handleLoadExample(
+                    example as () => ReturnType<typeof workoverExample>,
+                    String(label)
+                  )
+                }
+              >
+                <span>{String(label)}</span>
+                <small>{String(criterion)}</small>
+              </button>
+            ))}
+          </div>
+        </details>
+      </section>
     );
   }
 

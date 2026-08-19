@@ -1,6 +1,6 @@
 import React, { Component, ReactNode, useCallback, useEffect, useMemo, useRef, useState } from "react";
 import { isDebugEnabled } from "../debug/excelDiagnostics";
-import { saveToWorkbook } from "../excel/WorkbookState";
+import { loadFromWorkbook, saveToWorkbook } from "../excel/WorkbookState";
 import { CalculationResults } from "./components/CalculationResults";
 import { DebugPanel } from "./components/DebugPanel";
 import { HelpPopover } from "./components/HelpPopover";
@@ -86,6 +86,23 @@ function AppInner() {
   }, [toast]);
 
   const drawApi = useDrawTree(showToast);
+  const hasTree = Boolean(state.tree.rootId);
+
+  const handleLoadWorkbook = useCallback(async () => {
+    try {
+      const data = await loadFromWorkbook();
+      if (!data) {
+        showToast("Info", "No hay un análisis guardado en este libro", "info");
+        return;
+      }
+      dispatch({ type: "SET_TREE", data });
+      drawApi.clearRenderError();
+      showToast("Cargado", "Análisis restaurado", "success");
+    } catch (error) {
+      const message = error instanceof Error ? error.message : String(error);
+      showToast("Error", message || "No se pudo cargar el análisis", "error");
+    }
+  }, [dispatch, drawApi, showToast]);
 
   const tabs = [
     { id: "build" as const, label: "Armar" },
@@ -285,46 +302,53 @@ function AppInner() {
 
       <HelpPopover open={helpOpen} onClose={() => setHelpOpen(false)} triggerRef={helpBtnRef} />
 
-      {state.tree.rootId && <StatusStrip issues={validationIssues} />}
+      {hasTree ? (
+        <>
+          <StatusStrip issues={validationIssues} />
+          <Toolbar showToast={showToast} drawApi={drawApi} />
 
-      <Toolbar showToast={showToast} drawApi={drawApi} />
+          <div className="tab-bar" role="tablist">
+            {tabs.map((tab, index) => (
+              <button
+                key={tab.id}
+                type="button"
+                className={`tab-btn ${activeTab === tab.id ? "active" : ""}`}
+                onClick={() => dispatch({ type: "SET_TAB", tab: tab.id })}
+                onKeyDown={(event) => handleTabKeyDown(event, index)}
+                role="tab"
+                aria-selected={activeTab === tab.id}
+                id={`tab-${tab.id}`}
+                aria-controls={`tabpanel-${tab.id}`}
+                tabIndex={activeTab === tab.id ? 0 : -1}
+              >
+                {tab.label}
+              </button>
+            ))}
+          </div>
 
-      <div className="tab-bar" role="tablist">
-        {tabs.map((tab, index) => (
-          <button
-            key={tab.id}
-            type="button"
-            className={`tab-btn ${activeTab === tab.id ? "active" : ""}`}
-            onClick={() => dispatch({ type: "SET_TAB", tab: tab.id })}
-            onKeyDown={(event) => handleTabKeyDown(event, index)}
-            role="tab"
-            aria-selected={activeTab === tab.id}
-            id={`tab-${tab.id}`}
-            aria-controls={`tabpanel-${tab.id}`}
-            tabIndex={activeTab === tab.id ? 0 : -1}
+          <div
+            className="tab-content"
+            role="tabpanel"
+            id={`tabpanel-${activeTab}`}
+            aria-labelledby={`tab-${activeTab}`}
           >
-            {tab.label}
-          </button>
-        ))}
-      </div>
-
-      <div
-        className="tab-content"
-        role="tabpanel"
-        id={`tabpanel-${activeTab}`}
-        aria-labelledby={`tab-${activeTab}`}
-      >
-        {activeTab === "build" && (
-          <>
-            {validationIssues.length > 0 && <ValidationPanel issues={validationIssues} />}
-            {state.tree.rootId && <TreeMinimap />}
-            <TreeBuilder drawApi={drawApi} issuesByNode={issuesByNode} />
-            {state.selectedNodeId && <NodeEditor key={state.selectedNodeId} />}
-            <TreePreview />
-          </>
-        )}
-        {activeTab === "results" && <CalculationResults />}
-      </div>
+            {activeTab === "build" && (
+              <>
+                {validationIssues.length > 0 && <ValidationPanel issues={validationIssues} />}
+                <TreeMinimap />
+                <TreeBuilder drawApi={drawApi} issuesByNode={issuesByNode} />
+                {state.selectedNodeId && <NodeEditor key={state.selectedNodeId} />}
+                <TreePreview />
+              </>
+            )}
+            {activeTab === "results" && <CalculationResults />}
+          </div>
+        </>
+      ) : (
+        <main className="tab-content tab-content--onboarding">
+          <TreeBuilder drawApi={drawApi} onLoadWorkbook={handleLoadWorkbook} />
+        </main>
+      )}
 
       {debugEnabled && <DebugPanel />}
     </div>
