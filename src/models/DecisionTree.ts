@@ -203,6 +203,8 @@ export function validate(tree: DecisionTreeData): ValidationError[] {
     }
     if (node.cost !== null && node.cost !== undefined && !Number.isFinite(node.cost)) {
       errors.push({ nodeId, message: `El costo de "${node.label}" debe ser un número válido` });
+    } else if (node.cost !== null && node.cost !== undefined && node.cost < 0) {
+      errors.push({ nodeId, message: `El costo de la rama hacia "${node.label}" no puede ser negativo` });
     }
 
     if (node.type === "end") {

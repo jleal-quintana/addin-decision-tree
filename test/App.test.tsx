@@ -68,10 +68,10 @@ describe("taskpane critical flow", () => {
     fireEvent.change(screen.getByLabelText("Costo de Hacer workover"), {
       target: { value: "10" },
     });
-    fireEvent.change(screen.getByLabelText("Valor final de Hacer workover"), {
+    fireEvent.change(screen.getByLabelText("Valor del resultado final de Hacer workover"), {
       target: { value: "100" },
     });
-    fireEvent.change(screen.getByLabelText("Valor final de No intervenir"), {
+    fireEvent.change(screen.getByLabelText("Valor del resultado final de No intervenir"), {
       target: { value: "40" },
     });
     fireEvent.click(screen.getByRole("button", { name: "Listo con esta etapa" }));
@@ -103,7 +103,7 @@ describe("taskpane critical flow", () => {
       within(screen.getByRole("radiogroup", { name: "Destino de Perforar" }))
         .getByRole("radio", { name: /Evento incierto/ })
     );
-    fireEvent.change(screen.getByLabelText("Valor final de Vender área"), { target: { value: "50" } });
+    fireEvent.change(screen.getByLabelText("Valor del resultado final de Vender área"), { target: { value: "50" } });
     fireEvent.click(screen.getByRole("button", { name: "Definir etapa" }));
 
     fireEvent.change(screen.getByLabelText("Nombre de la incertidumbre"), {
@@ -118,7 +118,7 @@ describe("taskpane critical flow", () => {
       within(screen.getByRole("radiogroup", { name: "Destino de Éxito" }))
         .getByRole("radio", { name: "Decisión" })
     );
-    fireEvent.change(screen.getByLabelText("Valor final de Falla"), { target: { value: "-100" } });
+    fireEvent.change(screen.getByLabelText("Valor del resultado final de Falla"), { target: { value: "-100" } });
     fireEvent.click(screen.getByRole("button", { name: "Definir etapa" }));
 
     fireEvent.change(screen.getByLabelText("Pregunta de esta decisión"), {
@@ -130,7 +130,7 @@ describe("taskpane critical flow", () => {
       within(screen.getByRole("radiogroup", { name: "Destino de Completar" }))
         .getByRole("radio", { name: /Evento incierto/ })
     );
-    fireEvent.change(screen.getByLabelText("Valor final de Sidetrack"), { target: { value: "200" } });
+    fireEvent.change(screen.getByLabelText("Valor del resultado final de Sidetrack"), { target: { value: "200" } });
     fireEvent.click(screen.getByRole("button", { name: "Definir etapa" }));
 
     fireEvent.change(screen.getByLabelText("Nombre de la incertidumbre"), {
@@ -139,11 +139,12 @@ describe("taskpane critical flow", () => {
     fireEvent.change(screen.getByLabelText("Probabilidad de Evento favorable"), {
       target: { value: "70" },
     });
-    fireEvent.change(screen.getByLabelText("Valor final de Evento favorable"), { target: { value: "500" } });
-    fireEvent.change(screen.getByLabelText("Valor final de Evento adverso"), { target: { value: "-50" } });
+    fireEvent.change(screen.getByLabelText("Valor del resultado final de Evento favorable"), { target: { value: "500" } });
+    fireEvent.change(screen.getByLabelText("Valor del resultado final de Evento adverso"), { target: { value: "-50" } });
     fireEvent.click(screen.getByRole("button", { name: "Listo con esta etapa" }));
 
     expect(screen.getByLabelText("Resumen de estructura")).toHaveTextContent("4 niveles");
+    expect(screen.getAllByText(/Costos del camino \$100/).length).toBeGreaterThan(0);
     fireEvent.click(screen.getByRole("button", { name: "Revisar árbol" }));
     expect(screen.getByText(/4 niveles/)).toBeInTheDocument();
     fireEvent.click(screen.getByRole("button", { name: "Crear árbol y revisarlo" }));

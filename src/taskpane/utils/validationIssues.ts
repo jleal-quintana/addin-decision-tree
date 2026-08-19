@@ -91,6 +91,13 @@ export function buildValidationIssues(tree: DecisionTreeData): RichIssue[] {
         nodeId: node.id,
         message: `El costo de "${node.label}" debe ser un número válido`,
       });
+    } else if (node.cost !== null && node.cost !== undefined && node.cost < 0) {
+      pushUnique(issues, seen, {
+        key: `negative-cost-${node.id}`,
+        severity: "error",
+        nodeId: node.id,
+        message: `El costo de la rama hacia "${node.label}" no puede ser negativo`,
+      });
     }
 
     if (node.type !== "end" && node.childIds.length === 1) {

@@ -205,4 +205,15 @@ describe("DecisionTree", () => {
     expect(errors).toContain("Todos los nodos necesitan un nombre");
     expect(errors.some((message) => message.includes("entre 0% y 100%"))).toBe(true);
   });
+
+  it("rejects negative branch costs", () => {
+    let tree = createEmptyTree();
+    tree = addNode(tree, null, "decision", "Root");
+    tree = addNode(tree, tree.rootId, "end", "Resultado");
+    const resultId = tree.nodes[tree.rootId!].childIds[0];
+    tree = updateNode(tree, resultId, { payoff: 100, cost: -20 });
+
+    const errors = validate(tree).map((error) => error.message);
+    expect(errors.some((message) => message.includes("no puede ser negativo"))).toBe(true);
+  });
 });

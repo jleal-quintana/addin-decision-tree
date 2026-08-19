@@ -133,6 +133,8 @@ El asistente crea un árbol real, no un tutorial separado, mediante cuatro momen
 3. **La estructura:** cada rama pregunta directamente qué ocurre después: termina con un valor, continúa con otra decisión o depende de un evento incierto. En el mismo bloque se carga el costo de recorrer la rama; el costo se aplica exactamente una vez. El patrón es recursivo y no impone un máximo artificial de profundidad; sólo se muestra la etapa que la persona está editando.
 4. **Revisión:** comparación del valor esperado, conteo de decisiones/incertidumbres/niveles y recomendación preliminar antes de crear el árbol editable.
 
+Convención económica obligatoria: el valor o costo propio del desenlace se ingresa únicamente en un **resultado final**. En las ramas intermedias sólo se ingresan probabilidad, costo de recorrido y tiempo. Los valores esperados de decisiones e incertidumbres son fórmulas calculadas automáticamente desde los resultados finales hacia la raíz; nunca son campos editables.
+
 Las alternativas y los eventos por incertidumbre tampoco tienen un máximo fijo. Cada nodo de incertidumbre rebalancea sus propias probabilidades a 100%, incluso en etapas posteriores. “Evento” se reserva para lo que puede ocurrir; “resultado final” se usa únicamente cuando la rama termina en un valor económico.
 
 El modo avanzado sigue disponible para usuarios expertos que quieran comenzar desde un nodo raíz vacío. Los ejemplos se muestran dentro de un disclosure cerrado para que ayuden sin competir con el flujo principal.
@@ -218,6 +220,7 @@ Gridlines: off · Headings: off
 - **Columnas-canal** entre profundidades para alojar la apertura diagonal y la etiqueta de rama sin ocupar el bloque de ningún nodo.
 - **Conectores**: salen horizontalmente por el carril central vacío del nodo, se abren en diagonal únicamente dentro de la columna-canal y entran horizontalmente al destino. No atraviesan títulos, inputs ni resultados.
 - **Label de rama y probabilidad**: text box contenido íntegramente dentro del canal entre nodos, arriba del segmento horizontal y sin invadir los bloques adyacentes.
+- **Importes y cálculo**: el resultado final y el costo de rama se muestran como inputs. Cada nodo intermedio expone un único valor esperado calculado; no se muestra un subtotal técnico adicional. Probabilidad, costo y tiempo aparecen una sola vez sobre la rama entrante.
 - **Caja de recomendación**: 3-4 filas mergeadas ancho completo, fondo `lime` tenue (aplicar como color celda al 30% con `#F3FFE0` sintetizado), borde 2pt `olive`, número en `Montserrat 14 bold forest`.
 - **Tabla de resumen de caminos**: header `olive` fondo con texto blanco, filas alternas `paper` / `slate` tenue. Fila del camino recomendado en bold + fondo `lime` tenue.
 - **Header y footer del documento**: bands fijas en filas 1-4 y últimas 2. Usan `sheet.pageLayout.setHeadersFooters()` también para que aparezcan al imprimir si exceden la página.
@@ -271,3 +274,4 @@ Del manual Quintana: **formal, profesional, reservado, serio, accesible, factual
 | 2026-04-24 | Output Excel pensado como documento imprimible con header/footer/recomendación/tabla, no como diagrama suelto | Usuario explícito: "debe poder ser impreso y distribuido en PDF" |
 | 2026-04-24 | Eliminar tab de Sensibilidad, integrar ajuste de probabilidades en "Resultado" | Reducir superficies; el análisis de sensibilidad en papers es un capítulo, en la práctica del ingeniero es "cambiar el número y ver qué pasa" |
 | 2026-04-24 | Conservar 3 ejemplos actuales (workover, perforación, lanzamiento) pero cambiar el empty state a pregunta por caso, no por modo | Usuario explícito: el producto no es 100% workover; es decisión oil & gas |
+| 2026-08-19 | Ingresar valores económicos sólo en resultados finales y tratar todos los valores esperados intermedios como cálculos automáticos | Evita doble conteo y distingue con claridad los supuestos de entrada del rollback del árbol |

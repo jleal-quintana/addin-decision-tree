@@ -356,8 +356,9 @@ function buildInlineCalculationMetadata(
       sheetRow: node.row,
       probabilityAddress: `${sheetPrefix}${cellAddr(probabilityCol, valueRow)}`,
       costAddress: `${sheetPrefix}${cellAddr(costCol, valueRow)}`,
-      // Terminal y valor de ramas son mutuamente excluyentes: comparten el
-      // tercer carril sin agregar otra fila al documento.
+      // El tercer carril queda reservado para el resultado final ingresado.
+      // Los nodos intermedios calculan directamente en netEvAddress para no
+      // mostrar un subtotal técnico que pueda confundirse con otro input.
       terminalValueAddress: `${sheetPrefix}${cellAddr(secondaryCol, valueRow)}`,
       childrenEvAddress: `${sheetPrefix}${cellAddr(secondaryCol, valueRow)}`,
       netEvAddress: `${sheetPrefix}${cellAddr(valueCol, valueRow)}`,
@@ -385,6 +386,7 @@ function writeInlineCalculationCells(
     const costCol = layoutNode.col + 2;
     const secondaryCol = layoutNode.col + 3;
     const valueCol = layoutNode.col + 4;
+    const isRoot = node.id === tree.rootId;
 
     const probabilityLabel = sheet.getCell(labelRow, probabilityCol);
     probabilityLabel.values = [[node.probability !== null ? "Probabilidad" : ""]];
@@ -395,7 +397,7 @@ function writeInlineCalculationCells(
     styleTreeInputCell(probCell);
 
     const costLabel = sheet.getCell(labelRow, costCol);
-    costLabel.values = [["Costo"]];
+    costLabel.values = [[isRoot ? node.cost ? "Costo inicial" : "" : "Costo de rama"]];
     styleTreeMetricLabelCell(costLabel);
     const costCell = sheet.getCell(valueRow, costCol);
     costCell.values = [[node.cost ?? ""]];
@@ -403,7 +405,7 @@ function writeInlineCalculationCells(
     styleTreeInputCell(costCell);
 
     const secondaryLabel = sheet.getCell(labelRow, secondaryCol);
-    secondaryLabel.values = [[node.type === "end" ? "Resultado" : "Valor de ramas"]];
+    secondaryLabel.values = [[node.type === "end" ? "Resultado final" : ""]];
     styleTreeMetricLabelCell(secondaryLabel);
     const terminalCell = sheet.getCell(valueRow, secondaryCol);
     terminalCell.values = [[node.type === "end" ? node.payoff ?? 0 : ""]];
@@ -411,7 +413,11 @@ function writeInlineCalculationCells(
     styleTreeInputCell(terminalCell);
 
     const expectedValueLabel = sheet.getCell(labelRow, valueCol);
-    expectedValueLabel.values = [[evLabel]];
+    expectedValueLabel.values = [[
+      node.type === "end"
+        ? tree.metadata.mode === "minimize" ? "Costo calculado" : "Valor calculado"
+        : evLabel,
+    ]];
     styleTreeMetricLabelCell(expectedValueLabel);
   }
 
@@ -420,10 +426,8 @@ function writeInlineCalculationCells(
     if (!node) continue;
     const ref = metadata.nodeRefs[node.id];
     const costCol = layoutNode.col + 2;
-    const secondaryCol = layoutNode.col + 3;
     const valueCol = layoutNode.col + 4;
     const valueRow = layoutNode.row + GRID.nodeRows - 1;
-    const childrenEvCell = sheet.getRange(ref.childrenEvAddress.split("!").pop() ?? cellAddr(secondaryCol, valueRow));
     const netEvCell = sheet.getRange(ref.netEvAddress.split("!").pop() ?? cellAddr(valueCol, valueRow));
 
     if (node.type === "end" || node.childIds.length === 0) {
@@ -442,19 +446,18 @@ function writeInlineCalculationCells(
           return `${childRef.probabilityAddress}*${childRef.netEvAddress}`;
         })
         .filter((term): term is string => Boolean(term));
-      childrenEvCell.formulas = [[terms.length > 0 ? `=SUM(${terms.join(",")})` : "=0"]];
+      const rollback = terms.length > 0 ? `SUM(${terms.join(",")})` : "0";
+      netEvCell.formulas = [[`=${rollback}${costOp}N(${sameSheetRef(costCol, valueRow)})`]];
     } else {
       const childRefs = node.childIds
         .map((childId) => metadata.nodeRefs[childId]?.netEvAddress)
         .filter((addr): addr is string => Boolean(addr));
       const fn = tree.metadata.mode === "minimize" ? "MIN" : "MAX";
-      childrenEvCell.formulas = [[childRefs.length > 0 ? `=${fn}(${childRefs.join(",")})` : "=0"]];
+      const rollback = childRefs.length > 0 ? `${fn}(${childRefs.join(",")})` : "0";
+      netEvCell.formulas = [[`=${rollback}${costOp}N(${sameSheetRef(costCol, valueRow)})`]];
     }
 
-    childrenEvCell.numberFormat = [["$#,##0"]];
-    netEvCell.formulas = [[`=${ref.childrenEvAddress}${costOp}N(${sameSheetRef(costCol, valueRow)})`]];
     netEvCell.numberFormat = [["$#,##0"]];
-    styleTreeFormulaCell(childrenEvCell);
     styleTreeFormulaCell(netEvCell, true);
   }
 }
@@ -645,7 +648,22 @@ function renderLegend(sheet: Excel.Worksheet, row: number, totalCols: number): n
   range.format.font.color = QUINTANA.inkMuted;
   range.format.horizontalAlignment = "Center";
   sheet.getRange(rangeAddr(0, row, cols, 1)).format.rowHeight = 18;
-  return row + 1;
+
+  const calculationNote = setRowBandValue(
+    sheet,
+    0,
+    row + 1,
+    cols,
+    "Los importes se ingresan en los resultados finales y como costos de rama. Los valores esperados se calculan automáticamente hacia la decisión principal."
+  );
+  calculationNote.format.font.name = "Calibri";
+  calculationNote.format.font.size = 8;
+  calculationNote.format.font.italic = true;
+  calculationNote.format.font.color = QUINTANA.inkMuted;
+  calculationNote.format.horizontalAlignment = "Center";
+  calculationNote.format.wrapText = true;
+  sheet.getRange(rangeAddr(0, row + 1, cols, 1)).format.rowHeight = 22;
+  return row + 2;
 }
 
 /**

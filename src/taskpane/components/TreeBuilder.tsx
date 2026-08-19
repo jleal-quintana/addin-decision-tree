@@ -122,16 +122,16 @@ function NodeItem({
     parts.push(`${(node.probability * 100).toFixed(0)}%`);
   }
   if (node.type === "end" && node.payoff !== null) {
-    parts.push(`$${node.payoff.toLocaleString("es-AR")}`);
+    parts.push(`Final: $${node.payoff.toLocaleString("es-AR")}`);
   }
   if (node.cost !== null && node.cost !== undefined && node.cost !== 0) {
-    parts.push(`C: $${node.cost.toLocaleString("es-AR")}`);
+    parts.push(`Costo rama: $${node.cost.toLocaleString("es-AR")}`);
   }
   const metaText = parts.join(" · ");
 
   const evPrefix = state.tree.metadata.mode === "minimize" ? "Costo esp." : "Valor esp.";
   const evText =
-    node.expectedValue !== null
+    node.expectedValue !== null && (node.type !== "end" || (node.cost ?? 0) !== 0)
       ? `${evPrefix}: $${node.expectedValue.toLocaleString("es-AR", { maximumFractionDigits: 0 })}`
       : "";
 
@@ -164,7 +164,11 @@ function NodeItem({
           {node.label}
         </span>
         {metaText && <span className="node-meta">{metaText}</span>}
-        {evText && <span className="node-meta ev">{evText}</span>}
+        {evText && (
+          <span className="node-meta ev" title="Calculado automáticamente desde los resultados finales">
+            {evText}
+          </span>
+        )}
         <div className="node-actions">
           {node.type !== "end" && (
             <>

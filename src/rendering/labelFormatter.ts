@@ -26,13 +26,13 @@ export function formatPrimaryMetricLabel(tree: DecisionTreeData): string {
 }
 
 function formatTerminalMetricLabel(tree: DecisionTreeData): string {
-  return tree.metadata.mode === "minimize" ? "Costo terminal" : "Resultado terminal";
+  return tree.metadata.mode === "minimize" ? "Costo final" : "Valor final";
 }
 
 export function buildNodeTitle(node: LayoutNode): string {
   const role =
     node.type === "decision"
-      ? "Decision"
+      ? "Decisión"
       : node.type === "chance"
         ? "Evento"
         : "Resultado";
@@ -40,34 +40,25 @@ export function buildNodeTitle(node: LayoutNode): string {
 }
 
 export function buildNodePrimaryValue(tree: DecisionTreeData, node: LayoutNode): string {
-  const label = formatPrimaryMetricLabel(tree);
-
-  if (node.expectedValue !== null) {
-    return `${label}: ${formatCurrency(node.expectedValue)}`;
-  }
-
+  // En un resultado mostramos el dato terminal ingresado. El valor esperado
+  // pertenece al rollback de decisiones e incertidumbres y nunca reemplaza
+  // visualmente al importe final que origina el cálculo.
   if (node.type === "end" && node.payoff !== null) {
     return `${formatTerminalMetricLabel(tree)}: ${formatCurrency(node.payoff)}`;
+  }
+
+  const label = formatPrimaryMetricLabel(tree);
+  if (node.expectedValue !== null) {
+    return `${label}: ${formatCurrency(node.expectedValue)}`;
   }
 
   return `${label}: N/D`;
 }
 
-export function buildNodeSecondaryLines(tree: DecisionTreeData, node: LayoutNode): string[] {
-  const parts: string[] = [];
-
-  // La probabilidad vive en la rama entrante; repetirla dentro del nodo hace
-  // dificil distinguir que numero describe la rama y cual describe el nodo.
-  if (node.cost !== null && node.cost !== 0) {
-    parts.push(`Costo ${formatCurrency(node.cost)}`);
-  }
-  if (node.time) {
-    parts.push(node.time);
-  }
-
-  return parts
-    .slice(0, RENDER_LIMITS.maxSecondaryLines)
-    .map((line) => truncate(line, RENDER_LIMITS.secondaryLineChars));
+export function buildNodeSecondaryLines(_tree: DecisionTreeData, _node: LayoutNode): string[] {
+  // Probabilidad, costo y tiempo describen la rama entrante. Se muestran una
+  // sola vez sobre el conector para no parecer atributos ni valores del nodo.
+  return [];
 }
 
 // Heurística: si un customField numérico coincide con node.cost, es duplicado

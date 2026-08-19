@@ -14,6 +14,19 @@ function makePlacement(maxRow: number): CalcTablePlacement {
 }
 
 describe("Excel rendering", () => {
+  it("shows branch costs once and keeps terminal values on result nodes", () => {
+    const tree = oilDrillingExample();
+    const layout = computeLayout(tree);
+    const renderModel = buildRenderModel(tree, layout);
+    const drillNode = renderModel.nodes.find((node) => node.id === "drill")!;
+    const oilNode = renderModel.nodes.find((node) => node.id === "oil")!;
+    const drillEdge = renderModel.edges.find((edge) => edge.toId === "drill")!;
+
+    expect(drillNode.secondaryLines).toEqual([]);
+    expect(drillEdge.label).toContain("Costo $200.000");
+    expect(oilNode.primaryValue).toBe("Valor final: $1,0MM");
+  });
+
   it("renders shapes into the tree sheet", async () => {
     const { context } = installFakeExcel();
     const tree = oilDrillingExample();
@@ -146,6 +159,30 @@ describe("Excel rendering", () => {
       expect(branch.left + branch.width).toBeLessThan(toRange.left);
       expect(diagonal.left).toBeGreaterThanOrEqual(fromRange.left + fromRange.width);
     }
+  });
+
+  it("separates terminal inputs from automatically calculated rollback values", async () => {
+    const { context } = installFakeExcel();
+    const tree = oilDrillingExample();
+    const layout = computeLayout(tree);
+    const placement = makePlacement(layout.maxRow);
+    const calc = buildCalculationModel(tree, placement);
+    const renderModel = buildRenderModel(tree, layout);
+
+    await renderToExcel(layout, renderModel, calc, placement, tree);
+
+    const sheet = getWorksheet(context, TREE_SHEET_NAME)!;
+    const chanceLayout = layout.nodes.find((node) => node.id === "drill")!;
+    const terminalLayout = layout.nodes.find((node) => node.id === "oil")!;
+    const labelOffset = GRID.nodeRows - 2;
+    const valueOffset = GRID.nodeRows - 1;
+
+    expect(sheet.cells.get(cellAddr(chanceLayout.col + 3, chanceLayout.row + labelOffset))?.value).toBe("");
+    expect(sheet.cells.get(cellAddr(chanceLayout.col + 4, chanceLayout.row + labelOffset))?.value).toBe("Valor esperado");
+    expect(sheet.cells.get(cellAddr(chanceLayout.col + 4, chanceLayout.row + valueOffset))?.formula).toContain("=SUM(");
+
+    expect(sheet.cells.get(cellAddr(terminalLayout.col + 3, terminalLayout.row + labelOffset))?.value).toBe("Resultado final");
+    expect(sheet.cells.get(cellAddr(terminalLayout.col + 4, terminalLayout.row + labelOffset))?.value).toBe("Valor calculado");
   });
 
   it("renders via ShapeManager and clears previous artifacts", async () => {

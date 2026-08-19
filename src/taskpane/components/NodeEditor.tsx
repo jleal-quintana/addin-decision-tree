@@ -676,17 +676,22 @@ export function NodeEditor() {
 
   if (!node) return null;
 
-  const hasProbabilitySection = parentNode?.type === "chance";
   const isCost = state.tree.metadata.mode === "minimize";
   const evLabel = isCost ? "Costo esperado" : "Valor esperado";
-  const payoffLabel = isCost ? "Costo terminal ($)" : "Resultado ($)";
+  const payoffLabel = isCost ? "Costo del resultado final ($)" : "Valor del resultado final ($)";
   const payoffHint = isCost
-    ? "Costo total acumulado al llegar a este resultado. Se suma con los costos del camino."
-    : "Ingresá el VAN terminal o el ingreso final de esta rama.";
-  const costLabel = isCost ? "Costo adicional del nodo ($)" : "Costo de la rama ($)";
+    ? "Ingresá solamente el costo propio del resultado. Los costos cargados en las ramas se suman automáticamente."
+    : "Ingresá el VAN o valor económico al final. Los costos cargados en las ramas se restan automáticamente.";
+  const costLabel = "Costo al recorrer esta rama ($)";
   const costHint = isCost
-    ? "Costo de pasar por este nodo. Se suma al costo terminal."
-    : "Gasto asociado a la rama. Se resta del resultado.";
+    ? "Se suma una sola vez al costo del camino."
+    : "Se descuenta una sola vez del valor del camino.";
+  const calculatedLabel = node.type === "end"
+    ? isCost ? "Costo calculado de esta rama" : "Valor calculado de esta rama"
+    : evLabel;
+  const calculatedHint = node.type === "end"
+    ? "Combina el resultado final con el costo de la rama entrante."
+    : "Se calcula automáticamente desde los resultados finales, las probabilidades y los costos posteriores.";
 
   return (
     <div className="node-editor">
@@ -738,97 +743,108 @@ export function NodeEditor() {
         </div>
       </EditorSection>
 
-      {hasProbabilitySection && parentNode && (
-        <EditorSection title="Probabilidad de esta rama">
-          <IncomingBranchFields
+      {parentNode && (
+        <EditorSection title="Datos de esta rama">
+          {parentNode.type === "chance" && (
+            <IncomingBranchFields
+              node={node}
+              parentNode={parentNode}
+              siblingProbSum={siblingProbSum}
+              onUpdate={(updates) => updateNode(node.id, updates)}
+            />
+          )}
+          <Field id={costId} label={costLabel}>
+            <input
+              id={costId}
+              type="number"
+              min="0"
+              value={node.cost ?? ""}
+              onChange={(e) =>
+                updateNode(node.id, {
+                  cost: Number.isNaN(parseFloat(e.target.value))
+                    ? null
+                    : Math.max(0, parseFloat(e.target.value)),
+                })
+              }
+              placeholder="Opcional"
+              step="10000"
+            />
+            <div className="hint">{costHint}</div>
+          </Field>
+
+          <Field id={timeId} label="Tiempo">
+            <input
+              id={timeId}
+              type="text"
+              value={node.time ?? ""}
+              onChange={(e) => updateNode(node.id, { time: e.target.value || null })}
+              placeholder="Ej: 3 meses, 2 semanas"
+            />
+          </Field>
+        </EditorSection>
+      )}
+
+      {node.type === "end" && (
+        <EditorSection title="Resultado final">
+          <Field id={payoffId} label={payoffLabel}>
+            <input
+              id={payoffId}
+              type="number"
+              className="money"
+              value={node.payoff ?? 0}
+              onChange={(e) => updateNode(node.id, { payoff: parseNumber(e.target.value) })}
+              step="10000"
+            />
+            <div className="hint">
+              {payoffHint}
+              {!isCost && (
+                <>
+                  {" "}
+                  <button type="button" className="inline-link-button" onClick={() => setShowVan((open) => !open)}>
+                    {showVan ? "Cerrar calculadora" : "Calcular VAN"}
+                  </button>
+                </>
+              )}
+            </div>
+          </Field>
+
+          {showVan && (
+            <VanCalculator
+              state={vanState}
+              dispatchVan={dispatchVan}
+              onUse={() => {
+                updateNode(node.id, { payoff: calculateVan(vanState) });
+                setShowVan(false);
+              }}
+              onClose={() => setShowVan(false)}
+            />
+          )}
+        </EditorSection>
+      )}
+
+      {node.type === "chance" && node.childIds.length > 0 && (
+        <EditorSection title="Probabilidades de salida">
+          <ChildProbabilities
             node={node}
-            parentNode={parentNode}
-            siblingProbSum={siblingProbSum}
-            onUpdate={(updates) => updateNode(node.id, updates)}
+            nodes={state.tree.nodes}
+            onCommit={(nodeId, probability) => updateNode(nodeId, { probability })}
           />
         </EditorSection>
       )}
 
-      <EditorSection title="Valores">
-        {node.type === "end" && (
-          <>
-            <Field id={payoffId} label={payoffLabel}>
-              <input
-                id={payoffId}
-                type="number"
-                className="money"
-                value={node.payoff ?? 0}
-                onChange={(e) => updateNode(node.id, { payoff: parseNumber(e.target.value) })}
-                step="10000"
-              />
-              <div className="hint">
-                {payoffHint}
-                {!isCost && (
-                  <>
-                    {" "}
-                    <button type="button" className="inline-link-button" onClick={() => setShowVan((open) => !open)}>
-                      {showVan ? "Cerrar calculadora" : "Calcular VAN"}
-                    </button>
-                  </>
-                )}
-              </div>
-            </Field>
-
-            {showVan && (
-              <VanCalculator
-                state={vanState}
-                dispatchVan={dispatchVan}
-                onUse={() => {
-                  updateNode(node.id, { payoff: calculateVan(vanState) });
-                  setShowVan(false);
-                }}
-                onClose={() => setShowVan(false)}
-              />
-            )}
-          </>
-        )}
-
-        <Field id={costId} label={costLabel}>
-          <input
-            id={costId}
-            type="number"
-            value={node.cost ?? ""}
-            onChange={(e) =>
-              updateNode(node.id, {
-                cost: Number.isNaN(parseFloat(e.target.value)) ? null : parseFloat(e.target.value),
-              })
-            }
-            placeholder="Opcional"
-            step="10000"
-          />
-          <div className="hint">{costHint}</div>
-        </Field>
-
-        <Field id={timeId} label="Tiempo">
-          <input
-            id={timeId}
-            type="text"
-            value={node.time ?? ""}
-            onChange={(e) => updateNode(node.id, { time: e.target.value || null })}
-            placeholder="Ej: 3 meses, 2 semanas"
-          />
-        </Field>
-
-        <ChildProbabilities
-          node={node}
-          nodes={state.tree.nodes}
-          onCommit={(nodeId, probability) => updateNode(nodeId, { probability })}
-        />
-
-        {node.expectedValue !== null && (
+      {node.expectedValue !== null && (
+        <EditorSection title="Cálculo automático">
           <div className="field expected-value-field">
-            <div className="field-label">{evLabel}</div>
+            <div className="field-label">{calculatedLabel}</div>
             <div className={`ev-badge ${node.expectedValue >= 0 ? "positive" : "negative"}`}>
               ${node.expectedValue.toLocaleString("es-AR", { maximumFractionDigits: 0 })}
             </div>
+            <div className="hint">{calculatedHint}</div>
           </div>
-        )}
+        </EditorSection>
+      )}
 
+      <EditorSection title="Información adicional">
         <CustomFields node={node} onUpdate={(customFields) => updateNode(node.id, { customFields })} />
       </EditorSection>
     </div>

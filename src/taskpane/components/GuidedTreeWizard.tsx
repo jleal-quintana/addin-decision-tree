@@ -45,7 +45,7 @@ type DestinationType = DraftNode["type"];
 interface LeafInfo {
   node: DraftResultNode;
   path: string[];
-  cost: string;
+  accumulatedCost: number;
 }
 
 interface DraftStats {
@@ -200,13 +200,13 @@ function findPath(node: DraftNode, nodeId: string, path: string[] = []): string[
   return null;
 }
 
-function collectLeaves(node: DraftNode, path: string[] = [], cost = ""): LeafInfo[] {
-  if (node.type === "result") return [{ node, path, cost }];
+function collectLeaves(node: DraftNode, path: string[] = [], accumulatedCost = 0): LeafInfo[] {
+  if (node.type === "result") return [{ node, path, accumulatedCost }];
   return node.branches.flatMap((branch) =>
     collectLeaves(
       branch.target,
       [...path, branch.label.trim() || "Rama sin nombre"],
-      branch.cost
+      accumulatedCost + (parseCost(branch.cost) ?? 0)
     )
   );
 }
@@ -300,7 +300,7 @@ const destinationOptions: Array<{
   symbol: string;
   label: string;
 }> = [
-  { type: "result", symbol: "△", label: "Valor final" },
+  { type: "result", symbol: "△", label: "Resultado final" },
   { type: "decision", symbol: "□", label: "Decisión" },
   { type: "chance", symbol: "○", label: "Evento incierto" },
 ];
@@ -476,7 +476,7 @@ export function GuidedTreeWizard({ onCancel, onComplete }: GuidedTreeWizardProps
           />
         </label>
         <p className="guided-stage-note">
-          Definí qué ocurre al recorrer cada rama. El costo se aplica una sola vez.
+          Cargá probabilidades y costos en las ramas. El valor económico se ingresa únicamente cuando el camino termina; los valores esperados se calculan automáticamente.
         </p>
 
         <div className="guided-stage-branches">
@@ -535,7 +535,7 @@ export function GuidedTreeWizard({ onCancel, onComplete }: GuidedTreeWizardProps
                   </label>
                 )}
                 <label className="guided-compact-field">
-                  <span>Costo de esta rama</span>
+                  <span>Costo al recorrerla</span>
                   <div className="guided-prefix-input">
                     <span>$</span>
                     <input
@@ -556,25 +556,32 @@ export function GuidedTreeWizard({ onCancel, onComplete }: GuidedTreeWizardProps
               {renderDestinationSelector(branch)}
 
               {branch.target.type === "result" ? (
-                <label className="guided-terminal-value">
-                  <span>{mode === "minimize" ? "Costo final" : "Valor final"}</span>
-                  <div className="guided-prefix-input">
-                    <span>$</span>
-                    <input
-                      type="number"
-                      inputMode="decimal"
-                      value={branch.target.value}
-                      aria-label={`${mode === "minimize" ? "Costo" : "Valor"} final de ${branch.label}`}
-                      onChange={(event) =>
-                        updateNode(branch.target.id, (current) =>
-                          current.type === "result"
-                            ? { ...current, value: event.target.value }
-                            : current
-                        )
-                      }
-                    />
-                  </div>
-                </label>
+                <div className="guided-terminal-block">
+                  <label className="guided-terminal-value">
+                    <span>{mode === "minimize" ? "Costo del resultado final" : "Valor del resultado final"}</span>
+                    <div className="guided-prefix-input">
+                      <span>$</span>
+                      <input
+                        type="number"
+                        inputMode="decimal"
+                        value={branch.target.value}
+                        aria-label={`${mode === "minimize" ? "Costo" : "Valor"} del resultado final de ${branch.label}`}
+                        onChange={(event) =>
+                          updateNode(branch.target.id, (current) =>
+                            current.type === "result"
+                              ? { ...current, value: event.target.value }
+                              : current
+                          )
+                        }
+                      />
+                    </div>
+                  </label>
+                  <small>
+                    {mode === "minimize"
+                      ? "No incluyas los costos ya cargados en las ramas; el sistema los suma."
+                      : "No descuentes los costos ya cargados en las ramas; el sistema los resta."}
+                  </small>
+                </div>
               ) : (
                 <div className="guided-nested-stage">
                   <span className={`guided-node-kind guided-node-kind--${branch.target.type}`}>
@@ -704,7 +711,7 @@ export function GuidedTreeWizard({ onCancel, onComplete }: GuidedTreeWizardProps
         editingInternal ? renderStageEditor(editingInternal) : (
           <div className="guided-continuations">
             <p className="guided-intro">
-              Cada rama indica si termina en un valor, abre otra decisión o depende de un evento incierto.
+              Cada rama indica si termina en un resultado, abre otra decisión o depende de un evento incierto. Los importes finales se cargan solo en los resultados.
             </p>
             <div className="guided-depth-summary" aria-label="Resumen de estructura">
               <span><strong>{stats.decisions}</strong> decisiones</span>
@@ -739,14 +746,22 @@ export function GuidedTreeWizard({ onCancel, onComplete }: GuidedTreeWizardProps
             <div className="guided-leaf-map">
               {leaves.map((leaf) => {
                 const value = parseValue(leaf.node.value);
-                const cost = parseCost(leaf.cost);
+                const netValue = value === null
+                  ? null
+                  : mode === "minimize"
+                    ? value + leaf.accumulatedCost
+                    : value - leaf.accumulatedCost;
                 return (
                   <div key={leaf.node.id} className="guided-leaf-row guided-leaf-row--summary">
                     <span className="guided-leaf-path">{leaf.path.join(" › ")}</span>
                     <strong className={value === null ? "pending" : ""}>
                       {value === null ? "Falta valor" : formatCurrency(value)}
                     </strong>
-                    {cost !== null && cost > 0 && <small>Costo de rama: {formatCurrency(cost)}</small>}
+                    {value !== null && (
+                      <small>
+                        Valor final {formatCurrency(value)} · Costos del camino {formatCurrency(leaf.accumulatedCost)} · {mode === "minimize" ? "Costo total" : "Valor neto"} {formatCurrency(netValue ?? value)}
+                      </small>
+                    )}
                   </div>
                 );
               })}
@@ -770,6 +785,9 @@ export function GuidedTreeWizard({ onCancel, onComplete }: GuidedTreeWizardProps
               </div>
             ))}
           </div>
+          <p className="guided-calculation-note">
+            Los valores mostrados son cálculos automáticos desde los resultados finales, las probabilidades y los costos de cada camino.
+          </p>
           {comparison && (
             <div className="guided-recommendation" role="status">
               <span>Recomendación preliminar</span>
