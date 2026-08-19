@@ -362,7 +362,7 @@ export function TreeBuilder({ drawApi, issuesByNode, onLoadWorkbook }: TreeBuild
         </div>
 
         <h2 id="guided-welcome-title">Crear un análisis de decisión</h2>
-        <p className="lead">Respondé cuatro preguntas y obtené un primer árbol calculado.</p>
+        <p className="lead">Construí decisiones e incertidumbres paso a paso y obtené un árbol calculado.</p>
         <button
           type="button"
           className="btn btn-hero guided-start"
@@ -371,7 +371,7 @@ export function TreeBuilder({ drawApi, issuesByNode, onLoadWorkbook }: TreeBuild
         >
           Empezar paso a paso
         </button>
-        <p className="guided-time">Tiempo estimado: 3 minutos</p>
+        <p className="guided-time">Primer árbol: 3 minutos · podés ampliarlo sin límite</p>
 
         <div className="guided-secondary-actions">
           <button type="button" onClick={() => setStartMode("advanced")} disabled={loading}>

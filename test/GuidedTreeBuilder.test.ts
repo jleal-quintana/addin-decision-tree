@@ -1,70 +1,141 @@
 import { compareRootDecision } from "../src/engine/DecisionComparison";
 import { calculateExpectedValues } from "../src/engine/ExpectedValueCalculator";
-import { buildGuidedTree } from "../src/engine/GuidedTreeBuilder";
+import {
+  buildGuidedTree,
+  GuidedDecisionNodeInput,
+} from "../src/engine/GuidedTreeBuilder";
 
 describe("GuidedTreeBuilder", () => {
   it("creates a calculated decision from known alternatives", () => {
     const tree = buildGuidedTree({
       name: "Plan de intervención",
-      question: "¿Conviene intervenir el pozo?",
       mode: "maximize",
-      alternatives: [
-        {
-          id: "intervene",
-          label: "Hacer workover",
-          kind: "certain",
-          certainValue: 100,
-          outcomes: [],
-        },
-        {
-          id: "wait",
-          label: "No intervenir",
-          kind: "certain",
-          certainValue: 40,
-          outcomes: [],
-        },
-      ],
+      root: {
+        id: "root",
+        type: "decision",
+        label: "¿Conviene intervenir el pozo?",
+        branches: [
+          {
+            id: "b_intervene",
+            label: "Hacer workover",
+            probability: null,
+            target: { id: "intervene", type: "result", label: "Resultado", value: 100 },
+          },
+          {
+            id: "b_wait",
+            label: "No intervenir",
+            probability: null,
+            target: { id: "wait", type: "result", label: "Resultado", value: 40 },
+          },
+        ],
+      },
     });
 
     expect(tree.metadata.name).toBe("Plan de intervención");
-    expect(tree.nodes.guided_root.label).toBe("¿Conviene intervenir el pozo?");
-    expect(tree.nodes.guided_root.childIds).toHaveLength(2);
-    expect(calculateExpectedValues(tree).guided_root).toBe(100);
+    expect(tree.nodes.root.label).toBe("¿Conviene intervenir el pozo?");
+    expect(tree.nodes.root.childIds).toHaveLength(2);
+    expect(calculateExpectedValues(tree).root).toBe(100);
     expect(compareRootDecision(tree)?.recommendedLabel).toBe("Hacer workover");
   });
 
-  it("creates chance branches with their expected values and supports cost mode", () => {
+  it("alternates chance and decision stages while preserving probabilities", () => {
     const tree = buildGuidedTree({
       name: "",
-      question: "¿Qué reparación conviene?",
-      mode: "minimize",
-      alternatives: [
+      mode: "maximize",
+      root: {
+        id: "root",
+        type: "decision",
+        label: "¿Perforar?",
+        branches: [
+          {
+            id: "b_drill",
+            label: "Perforar",
+            probability: null,
+            target: {
+              id: "geology",
+              type: "chance",
+              label: "Resultado geológico",
+              branches: [
+                {
+                  id: "b_success",
+                  label: "Éxito",
+                  probability: 0.6,
+                  target: {
+                    id: "completion",
+                    type: "decision",
+                    label: "¿Cómo completar?",
+                    branches: [
+                      {
+                        id: "b_complete",
+                        label: "Completar",
+                        probability: null,
+                        target: { id: "complete", type: "result", label: "Producción", value: 300 },
+                      },
+                      {
+                        id: "b_sidetrack",
+                        label: "Sidetrack",
+                        probability: null,
+                        target: { id: "sidetrack", type: "result", label: "Producción", value: 200 },
+                      },
+                    ],
+                  },
+                },
+                {
+                  id: "b_failure",
+                  label: "Falla",
+                  probability: 0.4,
+                  target: { id: "failure", type: "result", label: "Pérdida", value: -100 },
+                },
+              ],
+            },
+          },
+          {
+            id: "b_exit",
+            label: "Vender área",
+            probability: null,
+            target: { id: "exit", type: "result", label: "Venta", value: 50 },
+          },
+        ],
+      },
+    });
+
+    const values = calculateExpectedValues(tree);
+    expect(tree.metadata.name).toBe("¿Perforar?");
+    expect(tree.nodes.geology.type).toBe("chance");
+    expect(tree.nodes.completion.type).toBe("decision");
+    expect(tree.nodes.completion.probability).toBe(0.6);
+    expect(values.completion).toBe(300);
+    expect(values.geology).toBe(140);
+    expect(values.root).toBe(140);
+    expect(compareRootDecision(tree)?.recommendedLabel).toBe("Perforar");
+  });
+
+  it("does not impose an artificial depth limit", () => {
+    const makeStage = (depth: number): GuidedDecisionNodeInput => ({
+      id: `decision_${depth}`,
+      type: "decision",
+      label: `Decisión ${depth}`,
+      branches: [
         {
-          id: "repair",
-          label: "Reparar ahora",
-          kind: "uncertain",
-          certainValue: 0,
-          outcomes: [
-            { id: "ok", label: "Éxito", probability: 0.75, value: 80 },
-            { id: "fail", label: "Falla", probability: 0.25, value: 200 },
-          ],
+          id: `continue_${depth}`,
+          label: "Continuar",
+          probability: null,
+          target:
+            depth < 12
+              ? makeStage(depth + 1)
+              : { id: "deep_result", type: "result", label: "Resultado", value: 120 },
         },
         {
-          id: "replace",
-          label: "Reemplazar",
-          kind: "certain",
-          certainValue: 120,
-          outcomes: [],
+          id: `stop_${depth}`,
+          label: "Detener",
+          probability: null,
+          target: { id: `stop_result_${depth}`, type: "result", label: "Resultado", value: depth },
         },
       ],
     });
 
-    const values = calculateExpectedValues(tree);
-    expect(tree.metadata.name).toBe("¿Qué reparación conviene?");
-    expect(tree.nodes.guided_alt_1.type).toBe("chance");
-    expect(tree.nodes.guided_alt_1.childIds).toHaveLength(2);
-    expect(values.guided_alt_1).toBe(110);
-    expect(values.guided_root).toBe(110);
-    expect(compareRootDecision(tree)?.recommendedLabel).toBe("Reparar ahora");
+    const tree = buildGuidedTree({ name: "Profundo", mode: "maximize", root: makeStage(1) });
+    expect(Object.values(tree.nodes).filter((node) => node.type === "decision")).toHaveLength(12);
+    expect(calculateExpectedValues(tree)[tree.rootId!]).toBe(120);
   });
 });

@@ -1,27 +1,42 @@
 import { DecisionTreeData, TreeNode } from "../models/types";
 
-export type GuidedOutcomeKind = "certain" | "uncertain";
-
-export interface GuidedOutcomeInput {
+export interface GuidedBranchInput {
   id: string;
   label: string;
-  probability: number;
+  probability: number | null;
+  target: GuidedNodeInput;
+}
+
+interface GuidedInternalNodeInput {
+  id: string;
+  label: string;
+  branches: GuidedBranchInput[];
+}
+
+export interface GuidedDecisionNodeInput extends GuidedInternalNodeInput {
+  type: "decision";
+}
+
+export interface GuidedChanceNodeInput extends GuidedInternalNodeInput {
+  type: "chance";
+}
+
+export interface GuidedResultNodeInput {
+  id: string;
+  type: "result";
+  label: string;
   value: number;
 }
 
-export interface GuidedAlternativeInput {
-  id: string;
-  label: string;
-  kind: GuidedOutcomeKind;
-  certainValue: number;
-  outcomes: GuidedOutcomeInput[];
-}
+export type GuidedNodeInput =
+  | GuidedDecisionNodeInput
+  | GuidedChanceNodeInput
+  | GuidedResultNodeInput;
 
 export interface GuidedTreeInput {
   name: string;
-  question: string;
   mode: "maximize" | "minimize";
-  alternatives: GuidedAlternativeInput[];
+  root: GuidedDecisionNodeInput;
 }
 
 function nodeBase(
@@ -29,7 +44,8 @@ function nodeBase(
   type: TreeNode["type"],
   label: string,
   branchLabel: string | null,
-  parentId: string | null
+  parentId: string | null,
+  probability: number | null
 ): TreeNode {
   return {
     id,
@@ -43,63 +59,68 @@ function nodeBase(
     isOptimal: false,
     parentId,
     childIds: [],
-    probability: null,
+    probability,
     collapsed: false,
     customFields: {},
   };
 }
 
-/** Convierte las respuestas simples del asistente en el modelo real del motor. */
+/** Convierte una estructura guiada recursiva en el modelo real del motor. */
 export function buildGuidedTree(input: GuidedTreeInput): DecisionTreeData {
   const now = new Date().toISOString();
-  const rootId = "guided_root";
   const nodes: DecisionTreeData["nodes"] = {};
-  const root = nodeBase(rootId, "decision", input.question.trim(), null, null);
-  nodes[rootId] = root;
 
-  input.alternatives.forEach((alternative, alternativeIndex) => {
-    const alternativeId = `guided_alt_${alternativeIndex + 1}`;
-    const alternativeLabel = alternative.label.trim();
-    root.childIds.push(alternativeId);
-
-    if (alternative.kind === "certain") {
-      const terminal = nodeBase(
-        alternativeId,
-        "end",
-        `Resultado de ${alternativeLabel}`,
-        alternativeLabel,
-        rootId
-      );
-      terminal.payoff = alternative.certainValue;
-      nodes[alternativeId] = terminal;
-      return;
+  const visit = (
+    draft: GuidedNodeInput,
+    parentId: string | null,
+    branchLabel: string | null,
+    probability: number | null
+  ): string => {
+    if (nodes[draft.id]) {
+      throw new Error(`El asistente generó un identificador duplicado: ${draft.id}`);
     }
 
-    const chance = nodeBase(
-      alternativeId,
-      "chance",
-      `Resultados de ${alternativeLabel}`,
-      alternativeLabel,
-      rootId
+    const type: TreeNode["type"] = draft.type === "result" ? "end" : draft.type;
+    const fallbackLabel =
+      draft.type === "decision"
+        ? "Nueva decisión"
+        : draft.type === "chance"
+          ? "Nueva incertidumbre"
+          : "Resultado final";
+    const node = nodeBase(
+      draft.id,
+      type,
+      draft.label.trim() || fallbackLabel,
+      branchLabel,
+      parentId,
+      probability
     );
-    nodes[alternativeId] = chance;
+    nodes[node.id] = node;
 
-    alternative.outcomes.forEach((outcome, outcomeIndex) => {
-      const outcomeId = `${alternativeId}_outcome_${outcomeIndex + 1}`;
-      const outcomeLabel = outcome.label.trim();
-      const terminal = nodeBase(outcomeId, "end", outcomeLabel, outcomeLabel, alternativeId);
-      terminal.payoff = outcome.value;
-      terminal.probability = outcome.probability;
-      nodes[outcomeId] = terminal;
-      chance.childIds.push(outcomeId);
-    });
-  });
+    if (draft.type === "result") {
+      node.payoff = draft.value;
+      return node.id;
+    }
 
+    for (const branch of draft.branches) {
+      const childId = visit(
+        branch.target,
+        node.id,
+        branch.label.trim(),
+        draft.type === "chance" ? branch.probability : null
+      );
+      node.childIds.push(childId);
+    }
+
+    return node.id;
+  };
+
+  const rootId = visit(input.root, null, null, null);
   return {
     rootId,
     nodes,
     metadata: {
-      name: input.name.trim() || input.question.trim(),
+      name: input.name.trim() || input.root.label.trim() || "Nuevo análisis",
       mode: input.mode,
       createdAt: now,
       updatedAt: now,
