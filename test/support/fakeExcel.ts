@@ -344,6 +344,21 @@ class FakeNullRange extends FakeRange {
 class FakeWorksheet {
   visibility = "Visible";
   showGridlines = true;
+  pageLayout = {
+    orientation: "",
+    paperSize: "",
+    zoom: null as { horizontalFitToPages: number; verticalFitToPages: number } | null,
+    printArea: "",
+    leftMargin: 0,
+    rightMargin: 0,
+    topMargin: 0,
+    bottomMargin: 0,
+    headerMargin: 0,
+    footerMargin: 0,
+    setPrintArea: (address: string) => {
+      this.pageLayout.printArea = address;
+    },
+  };
   activated = false;
   mergeCalls = 0;
   unmergeCalls = 0;
@@ -486,6 +501,15 @@ export function installFakeExcel() {
     },
     ClearApplyTo: {
       all: "All",
+    },
+    Placement: {
+      oneCell: "OneCell",
+    },
+    PageOrientation: {
+      landscape: "Landscape",
+    },
+    PaperType: {
+      a4: "A4",
     },
   };
 

@@ -75,6 +75,36 @@ export function buildValidationIssues(tree: DecisionTreeData): RichIssue[] {
     visiting.add(nodeId);
     visited.add(nodeId);
 
+    if (!node.label.trim()) {
+      pushUnique(issues, seen, {
+        key: `empty-label-${node.id}`,
+        severity: "error",
+        nodeId: node.id,
+        message: "Todos los nodos necesitan un nombre",
+      });
+    }
+
+    if (node.cost !== null && node.cost !== undefined && !Number.isFinite(node.cost)) {
+      pushUnique(issues, seen, {
+        key: `invalid-cost-${node.id}`,
+        severity: "error",
+        nodeId: node.id,
+        message: `El costo de "${node.label}" debe ser un número válido`,
+      });
+    }
+
+    if (node.type !== "end" && node.childIds.length === 1) {
+      pushUnique(issues, seen, {
+        key: `single-child-${node.id}`,
+        severity: "warn",
+        nodeId: node.id,
+        message:
+          node.type === "decision"
+            ? `"${node.label}" tiene una sola alternativa y todavía no compara opciones`
+            : `"${node.label}" tiene un solo evento y todavía no representa incertidumbre`,
+      });
+    }
+
     if (node.type === "end") {
       if (node.childIds.length > 0) {
         pushUnique(issues, seen, {
@@ -92,6 +122,13 @@ export function buildValidationIssues(tree: DecisionTreeData): RichIssue[] {
           message: `"${node.label}" necesita un VAN terminal`,
           fixLabel: "Poner en 0",
           fix: { kind: "setPayoff", nodeId: node.id, value: 0 },
+        });
+      } else if (!Number.isFinite(node.payoff)) {
+        pushUnique(issues, seen, {
+          key: `invalid-payoff-${node.id}`,
+          severity: "error",
+          nodeId: node.id,
+          message: `El resultado de "${node.label}" debe ser un número válido`,
         });
       }
     } else if (node.childIds.length === 0) {
@@ -111,8 +148,30 @@ export function buildValidationIssues(tree: DecisionTreeData): RichIssue[] {
         if (!child) continue;
         if (child.probability === null || child.probability === undefined) {
           missing.push(child);
+        } else if (!Number.isFinite(child.probability)) {
+          pushUnique(issues, seen, {
+            key: `invalid-prob-${child.id}`,
+            severity: "error",
+            nodeId: child.id,
+            message: `La probabilidad de la rama "${child.branchLabel || child.label}" debe ser un número válido`,
+          });
         } else {
           sumDefined += child.probability;
+          if (child.probability < 0 || child.probability > 1) {
+            pushUnique(issues, seen, {
+              key: `prob-range-${child.id}`,
+              severity: "error",
+              nodeId: child.id,
+              message: `La probabilidad de la rama "${child.branchLabel || child.label}" debe estar entre 0% y 100%`,
+            });
+          } else if (child.probability === 0) {
+            pushUnique(issues, seen, {
+              key: `zero-prob-${child.id}`,
+              severity: "warn",
+              nodeId: child.id,
+              message: `La rama "${child.branchLabel || child.label}" está en 0% y no influye en el cálculo`,
+            });
+          }
         }
       }
       const remaining = Math.max(0, 1 - sumDefined);

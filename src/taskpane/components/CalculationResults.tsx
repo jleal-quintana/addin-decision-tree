@@ -1,5 +1,8 @@
 import React, { useCallback, useEffect, useMemo, useRef, useState } from "react";
+import { compareRootDecision } from "../../engine/DecisionComparison";
+import { buildDecisionStrategy } from "../../engine/DecisionStrategy";
 import { enumeratePaths } from "../../engine/PathEnumeration";
+import { rebalanceChanceProbability } from "../../engine/ProbabilityRebalancing";
 import { useTree } from "../context/TreeContext";
 import { focusNodeInTree } from "../utils/focusNode";
 
@@ -72,42 +75,14 @@ export function CalculationResults() {
   const isCost = tree.metadata.mode === "minimize";
   const rootLabel = isCost ? "Costo esperado" : "Valor esperado";
 
-  const optimalPath = paths.find((p) => p.isOptimal);
-  const alternatives = paths.filter((p) => !p.isOptimal);
-  // Mejor alternativa: según modo, la de mayor valor (Valor) o menor costo (Costo).
-  const bestAlternative = alternatives.reduce<typeof alternatives[number] | null>((best, row) => {
-    if (!best) return row;
-    if (isCost) return row.value < best.value ? row : best;
-    return row.value > best.value ? row : best;
-  }, null);
-
-  const deltaVsAlt = optimalPath && bestAlternative
-    ? (isCost ? bestAlternative.value - optimalPath.value : optimalPath.value - bestAlternative.value)
-    : null;
-
-  // Primera rama elegida: primer nodo del camino óptimo cuyo padre sea una decisión.
-  const { recommendedAction, recommendedActionId, recommendedParentLabel } = useMemo(() => {
-    if (!optimalPath) {
-      return {
-        recommendedAction: "",
-        recommendedActionId: null as string | null,
-        recommendedParentLabel: "",
-      };
-    }
-    for (const id of optimalPath.ids) {
-      const node = tree.nodes[id];
-      if (!node?.parentId) continue;
-      const parent = tree.nodes[node.parentId];
-      if (parent?.type === "decision") {
-        return {
-          recommendedAction: node.branchLabel || node.label,
-          recommendedActionId: id,
-          recommendedParentLabel: parent.parentId ? parent.label : "",
-        };
-      }
-    }
-    return { recommendedAction: "", recommendedActionId: null, recommendedParentLabel: "" };
-  }, [optimalPath, tree.nodes]);
+  const decisionComparison = useMemo(() => compareRootDecision(tree), [tree]);
+  const decisionStrategy = useMemo(() => buildDecisionStrategy(tree), [tree]);
+  const recommendedAction = decisionComparison?.recommendedLabel ?? "";
+  const recommendedActionId = decisionComparison?.isTie
+    ? null
+    : decisionComparison?.recommendedId ?? null;
+  const deltaVsAlt = decisionComparison?.delta ?? null;
+  const relativeDelta = decisionComparison?.relativeDelta ?? null;
 
   const handleFocusNode = useCallback(
     (nodeId: string) => {
@@ -133,9 +108,9 @@ export function CalculationResults() {
       const parsedPct = parseFloat(cleaned);
       if (!Number.isFinite(parsedPct)) return;
       const prob = Math.min(Math.max(parsedPct / 100, 0), 1);
-      dispatch({ type: "UPDATE_NODE", nodeId, updates: { probability: prob } });
+      dispatch({ type: "SET_TREE", data: rebalanceChanceProbability(tree, nodeId, prob) });
     },
-    [dispatch]
+    [dispatch, tree]
   );
 
   if (!hasResults) {
@@ -161,24 +136,51 @@ export function CalculationResults() {
       <div className="reco-card" role="region" aria-label="Recomendación">
         <div className="reco-eyebrow">Recomendación</div>
         <div className="reco-headline">
-          {optimalPath
-            ? recommendedAction
-              ? `Elegir: ${recommendedAction}`
-              : "Camino recomendado resuelto"
+          {decisionComparison
+            ? decisionComparison.isTie && decisionComparison.alternativeLabel
+              ? `Empate: ${recommendedAction} y ${decisionComparison.alternativeLabel}`
+              : recommendedAction
+                ? `Elegir: ${recommendedAction}`
+                : "Camino recomendado resuelto"
             : "Todavía no hay una decisión clara"}
-          {recommendedParentLabel && (
-            <span className="reco-headline__context"> en {recommendedParentLabel}</span>
-          )}
         </div>
         <div className="reco-detail">
           <span className="reco-kv"><span className="reco-k">{rootLabel}:</span> <strong>{formatCurrency(rootEV)}</strong></span>
-          {deltaVsAlt !== null && bestAlternative && (
+          {deltaVsAlt !== null && decisionComparison?.alternativeLabel && !decisionComparison.isTie && (
             <span className="reco-kv">
-              <span className="reco-k">{isCost ? "Ahorra" : "Gana"} vs alternativa:</span>{" "}
+              <span className="reco-k">
+                {isCost ? "Ahorra" : "Gana"} vs {decisionComparison.alternativeLabel}:
+              </span>{" "}
               <strong>{formatCurrency(Math.abs(deltaVsAlt))}</strong>
+              {relativeDelta !== null && (
+                <span className="reco-percent"> ({formatPercent(relativeDelta)})</span>
+              )}
             </span>
           )}
         </div>
+        {decisionComparison?.isTie && (
+          <p className="reco-caution">
+            Las alternativas tienen el mismo valor esperado. La elección requiere otro criterio.
+          </p>
+        )}
+        {!decisionComparison?.isTie && relativeDelta !== null && relativeDelta <= 0.05 && (
+          <p className="reco-caution">
+            Margen estrecho ({formatPercent(relativeDelta)}): revisá los supuestos antes de decidir.
+          </p>
+        )}
+        {decisionStrategy.length > 1 && (
+          <div className="reco-plan">
+            <div className="reco-plan__title">Decisiones posteriores</div>
+            <ul>
+              {decisionStrategy.slice(1).map((step) => (
+                <li key={step.decisionId}>
+                  <span>Si {step.conditionLabel || step.decisionLabel}:</span>{" "}
+                  <strong>{step.choiceLabel}</strong>
+                </li>
+              ))}
+            </ul>
+          </div>
+        )}
         {recommendedActionId && (
           <button
             type="button"
@@ -203,8 +205,8 @@ export function CalculationResults() {
                 <tr>
                   <th>Camino</th>
                   <th style={{ textAlign: "right" }}>Prob.</th>
-                  <th style={{ textAlign: "right" }}>{rootLabel}</th>
-                  <th style={{ textAlign: "right" }}>Vs recomendado</th>
+                  <th style={{ textAlign: "right" }}>{isCost ? "Costo del camino" : "Valor del camino"}</th>
+                  <th style={{ textAlign: "right" }}>Vs esperado</th>
                   <th aria-label="Ir al nodo" />
                 </tr>
               </thead>

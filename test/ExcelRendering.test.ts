@@ -1,4 +1,4 @@
-import { oilDrillingExample } from "../src/engine/Examples";
+import { oilDrillingExample, workoverExample } from "../src/engine/Examples";
 import { buildCalculationModel, CalcTablePlacement } from "../src/excel/CalculationSheet";
 import { clearShapes, renderTreeToExcel } from "../src/excel/ShapeManager";
 import { TREE_SHEET_NAME } from "../src/excel/WorkbookConstants";
@@ -24,6 +24,38 @@ describe("Excel rendering", () => {
 
     const sheet = getWorksheet(context, TREE_SHEET_NAME)!;
     expect(sheet.shapes.items.some((shape) => shape.name.startsWith("DT_NODE_"))).toBe(true);
+  });
+
+  it("renders the complete printable document and applies A4 page setup", async () => {
+    const { context } = installFakeExcel();
+    const tree = oilDrillingExample();
+
+    await renderTreeToExcel(tree);
+
+    const sheet = getWorksheet(context, TREE_SHEET_NAME)!;
+    const visibleValues = Array.from(sheet.cells.values()).map((cell) => cell.value);
+    expect(visibleValues).toContain("RECOMENDACIÓN");
+    expect(visibleValues).toContain("RESUMEN DE CAMINOS");
+    expect(visibleValues.some((value) => String(value).startsWith("Leyenda:"))).toBe(true);
+    expect(visibleValues.some((value) => String(value).includes("Documento confidencial"))).toBe(true);
+    expect(sheet.pageLayout.orientation).toBe("Landscape");
+    expect(sheet.pageLayout.paperSize).toBe("A4");
+    expect(sheet.pageLayout.printArea).toMatch(/^A1:/);
+    expect(sheet.showGridlines).toBe(false);
+  });
+
+  it("writes contingent decisions into the printable recommendation", async () => {
+    const { context } = installFakeExcel();
+
+    await renderTreeToExcel(workoverExample());
+
+    const sheet = getWorksheet(context, TREE_SHEET_NAME)!;
+    const visibleValues = Array.from(sheet.cells.values()).map((cell) => String(cell.value));
+    expect(
+      visibleValues.some((value) =>
+        value.includes("Si Ante falla operativa: elegir Abandonar pozo")
+      )
+    ).toBe(true);
   });
 
   it("uses the branch-style visual language from the VM Plan reference", async () => {

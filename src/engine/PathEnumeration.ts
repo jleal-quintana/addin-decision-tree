@@ -38,8 +38,7 @@ export function enumeratePaths(tree: DecisionTreeData): PathRow[] {
     const branchProb = parent?.type === "chance" ? node.probability ?? 0 : 1;
     const nextProb = accProb * branchProb;
 
-    const branchCost = parent ? node.cost ?? 0 : 0;
-    const nextCost = accCost + branchCost;
+    const nextCost = accCost + (node.cost ?? 0);
 
     const labelPart = parent && node.branchLabel ? `${node.branchLabel}: ${node.label}` : node.label;
     const nextLabels = [...accLabels, labelPart];

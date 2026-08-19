@@ -36,9 +36,13 @@
   --success: #2E7D32;
   --success-bg: rgba(46, 125, 50, 0.08);
   --warning: #B35C00;
+  --warning-bg: #FFF4E5;
+  --warning-border: #E7B879;
   --error: #9C1F1F;
   --error-bg: #FCEDEC;
   --error-border: #E5B4B0;
+  --danger: #9C1F1F;
+  --danger-hover: #761818;
   --info-bg: #F0F4FA;
 
   /* Hover derivados */
@@ -81,7 +85,8 @@ body {
 
 /* Focus visible global — anillo coherente en todos los controles */
 :focus-visible {
-  outline: none;
+  outline: 2px solid transparent;
+  outline-offset: 2px;
   box-shadow: var(--focus-ring);
   border-radius: var(--radius-sm);
 }
@@ -113,7 +118,7 @@ body {
   font-family: 'Montserrat', sans-serif;
   font-size: 9px;
   font-weight: 600;
-  color: var(--qe-beige);
+  color: var(--qe-crema);
   letter-spacing: 1.3px;
   text-transform: uppercase;
   margin-bottom: 2px;
@@ -627,7 +632,7 @@ body {
   font-size: 13px;
   font-weight: 600;
   background: var(--qe-verde);
-  color: #fff;
+  color: var(--text-on-dark);
   border-color: var(--qe-verde);
 }
 
@@ -1801,6 +1806,49 @@ body {
   color: var(--qe-bosque);
 }
 
+.reco-percent {
+  color: var(--text-secondary);
+  font-variant-numeric: tabular-nums;
+}
+
+.reco-caution {
+  margin: 10px 0 0;
+  padding: 8px 10px;
+  border: 1px solid var(--warning-border);
+  border-radius: var(--radius-sm);
+  background: var(--warning-bg);
+  color: var(--text-primary);
+  font-size: 11px;
+  line-height: 1.4;
+}
+
+.reco-plan {
+  margin-top: 10px;
+  padding-top: 10px;
+  border-top: 1px solid var(--qe-verde);
+  font-size: 11px;
+  line-height: 1.4;
+}
+
+.reco-plan__title {
+  margin-bottom: 4px;
+  font-family: 'Montserrat', sans-serif;
+  font-size: 10px;
+  font-weight: 700;
+  text-transform: uppercase;
+  letter-spacing: 0.5px;
+  color: var(--qe-bosque);
+}
+
+.reco-plan ul {
+  margin: 0;
+  padding-inline-start: 18px;
+}
+
+.reco-plan li + li {
+  margin-top: 3px;
+}
+
 .reco-dot {
   color: var(--qe-verde);
   margin-right: 4px;
@@ -1852,8 +1900,8 @@ body {
   display: inline-flex;
   align-items: center;
   justify-content: center;
-  width: 22px;
-  height: 22px;
+  width: 28px;
+  height: 28px;
   border-radius: 50%;
   border: 1px solid var(--border);
   background: transparent;
@@ -2021,7 +2069,7 @@ body {
   font-family: 'Montserrat', sans-serif;
   font-weight: 700;
   font-size: 14px;
-  color: #ffffff;
+  color: var(--text-on-dark);
   cursor: pointer;
   display: inline-flex;
   align-items: center;
@@ -2124,7 +2172,7 @@ body {
   width: 14px;
   height: 14px;
   border: 2px solid rgba(255, 255, 255, 0.4);
-  border-top-color: #ffffff;
+  border-top-color: var(--text-on-dark);
   border-radius: 50%;
   animation: spin 0.8s linear infinite;
   display: inline-block;
@@ -2176,7 +2224,7 @@ body {
   padding: 8px 16px;
   min-height: 36px;
   background: var(--qe-verde);
-  color: #fff;
+  color: var(--text-on-dark);
   border: 1px solid var(--qe-verde);
   border-radius: var(--radius-sm);
   font-family: 'Inter', sans-serif;
@@ -2382,9 +2430,9 @@ body {
 }
 
 .btn-danger {
-  background: #b03a2e;
-  color: #fff;
-  border: 1px solid #8a2e25;
+  background: var(--danger);
+  color: var(--text-on-dark);
+  border: 1px solid var(--danger-hover);
   font-family: 'Montserrat', sans-serif;
   font-weight: 600;
   padding: 6px 14px;
@@ -2393,7 +2441,7 @@ body {
   transition: background 0.12s ease;
 }
 .btn-danger:hover {
-  background: #8a2e25;
+  background: var(--danger-hover);
 }
 .btn-danger:focus-visible {
   outline: 2px solid var(--qe-bosque);

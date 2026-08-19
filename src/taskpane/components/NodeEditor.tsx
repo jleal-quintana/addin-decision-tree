@@ -642,6 +642,7 @@ export function NodeEditor() {
   const [showVan, setShowVan] = useState(false);
   const [vanState, dispatchVan] = useReducer(vanReducer, initialVanState);
   const labelId = useId();
+  const branchLabelId = useId();
   const costId = useId();
   const timeId = useId();
   const payoffId = useId();
@@ -704,6 +705,32 @@ export function NodeEditor() {
             Nombre del paso o estado. Aparece en el dibujo de Excel.
           </div>
         </Field>
+
+        {parentNode && (
+          <Field
+            id={branchLabelId}
+            label={
+              parentNode.type === "decision"
+                ? "Alternativa (texto sobre la rama)"
+                : "Evento (texto sobre la rama)"
+            }
+          >
+            <input
+              id={branchLabelId}
+              type="text"
+              value={node.branchLabel ?? ""}
+              onChange={(e) => updateNode(node.id, { branchLabel: e.target.value })}
+              placeholder={
+                parentNode.type === "decision"
+                  ? "Ej: Hacer workover"
+                  : "Ej: Resultado favorable"
+              }
+            />
+            <div className="hint">
+              Describe la opción o el evento que lleva a este nodo. Puede ser distinto del nombre del nodo.
+            </div>
+          </Field>
+        )}
 
         <div className="field">
           <div className="field-label">Tipo</div>

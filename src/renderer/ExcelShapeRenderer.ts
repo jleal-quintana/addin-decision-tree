@@ -11,7 +11,9 @@ import {
   RenderNodeContent,
 } from "../models/types";
 import { QUINTANA, RENDER_TOKENS } from "../rendering/designTokens";
-import { PathRow } from "../engine/PathEnumeration";
+import { compareRootDecision } from "../engine/DecisionComparison";
+import { buildDecisionStrategy } from "../engine/DecisionStrategy";
+import { enumeratePaths, PathRow } from "../engine/PathEnumeration";
 import { EDGE_COLORS, GRID, ROW_HEIGHT, SHAPE_PREFIX, SHAPE_ROW_HEIGHT } from "./StyleConfig";
 
 type ShapeType = "decision" | "chance" | "end";
@@ -589,7 +591,8 @@ function renderRecommendationBox(
   row: number,
   totalCols: number,
   headline: string,
-  detail: string
+  detail: string,
+  strategyLines: string[] = []
 ): number {
   const cols = totalCols;
   const heading = setRowBandValue(sheet, 0, row, cols, "RECOMENDACIÓN");
@@ -619,8 +622,20 @@ function renderRecommendationBox(
   detailRange.format.horizontalAlignment = "Left";
   sheet.getRange(rangeAddr(0, detailRow, cols, 1)).format.rowHeight = 20;
 
-  // Borde olive alrededor (filas titleRow y detailRow)
-  const boxRange = sheet.getRange(rangeAddr(0, titleRow, cols, 2));
+  let nextRow = detailRow + 1;
+  for (const line of strategyLines) {
+    const strategyRange = setRowBandValue(sheet, 0, nextRow, cols, line);
+    strategyRange.format.fill.color = QUINTANA.limeTenue;
+    strategyRange.format.font.name = "Calibri";
+    strategyRange.format.font.size = 10;
+    strategyRange.format.font.color = QUINTANA.ink;
+    strategyRange.format.horizontalAlignment = "Left";
+    sheet.getRange(rangeAddr(0, nextRow, cols, 1)).format.rowHeight = 18;
+    nextRow += 1;
+  }
+
+  // Borde olive alrededor de todo el bloque.
+  const boxRange = sheet.getRange(rangeAddr(0, titleRow, cols, nextRow - titleRow));
   const borders = boxRange.format.borders;
   for (const side of ["EdgeTop", "EdgeBottom", "EdgeLeft", "EdgeRight"] as const) {
     const b = borders.getItem(side);
@@ -629,7 +644,7 @@ function renderRecommendationBox(
     b.weight = "Medium";
   }
 
-  return detailRow + 2;
+  return nextRow + 1;
 }
 
 // `enumeratePaths` + `PathRow` viven en src/engine/PathEnumeration.ts (shared con el taskpane).
@@ -646,10 +661,10 @@ function buildPathValueFormula(
   const terminalRef = metadata.nodeRefs[terminalId];
   if (!terminalRef) return null;
 
-  // root no aporta cost al path (parity con enumeratePaths). costs vienen de
-  // los nodos siguientes hasta el end inclusive.
+  // Todos los costos del camino, incluido uno eventual en la raiz, deben
+  // coincidir con ExpectedValueCalculator y enumeratePaths.
   const costAddrs: string[] = [];
-  for (let idx = 1; idx < path.ids.length; idx++) {
+  for (let idx = 0; idx < path.ids.length; idx++) {
     const nodeRef = metadata.nodeRefs[path.ids[idx]];
     if (nodeRef) costAddrs.push(`N(${nodeRef.costAddress})`);
   }
@@ -1053,11 +1068,60 @@ export async function renderToExcel(
         writeInlineCalculationCells(treeSheet, tree, layout, inlineCalcSheetMetadata);
         await context.sync();
 
-        // El output imprimible termina en el arbol: las cuentas auditables
-        // viven sobre el arbol, no en tablas auxiliares al pie.
-        const cursor = layout.maxRow + GRID.rowGap;
+        // Cerrar el entregable con las zonas que lo vuelven imprimible y
+        // autoexplicativo: leyenda, recomendación, caminos y pie institucional.
+        let cursor = layout.maxRow + GRID.rowGap + 1;
+        cursor = renderLegend(treeSheet, cursor, totalCols) + 1;
 
-        applyPageSetup(treeSheet, totalCols, cursor);
+        const comparison = compareRootDecision(tree);
+        const strategy = buildDecisionStrategy(tree);
+        const recommendationHeadline = comparison
+          ? comparison.isTie && comparison.alternativeLabel
+            ? `Empate: ${comparison.recommendedLabel} / ${comparison.alternativeLabel}`
+            : `Elegir: ${comparison.recommendedLabel}`
+          : renderModel.summary?.recommendedAction ?? "Revisar alternativas";
+        const recommendationDetail = [
+          renderModel.summary?.rootValue ?? "",
+          comparison?.delta !== null && comparison?.delta !== undefined && comparison.alternativeLabel
+            ? comparison.isTie
+              ? "Las alternativas tienen el mismo valor esperado"
+              : `${tree.metadata.mode === "minimize" ? "Ahorra" : "Gana"} ${formatCurrencyAr(comparison.delta)} frente a ${comparison.alternativeLabel}${comparison.relativeDelta !== null ? ` (${(comparison.relativeDelta * 100).toFixed(1).replace(".", ",")}%)` : ""}`
+            : "",
+          comparison?.relativeDelta !== null &&
+          comparison?.relativeDelta !== undefined &&
+          comparison.relativeDelta <= 0.05 &&
+          !comparison.isTie
+            ? "Margen estrecho: revisar supuestos"
+            : "",
+        ]
+          .filter(Boolean)
+          .join(" · ");
+
+        cursor = renderRecommendationBox(
+          treeSheet,
+          cursor,
+          totalCols,
+          recommendationHeadline,
+          recommendationDetail,
+          strategy.slice(1).map((step) =>
+            `Si ${step.conditionLabel || step.decisionLabel}: elegir ${step.choiceLabel}`
+          )
+        );
+
+        const paths = enumeratePaths(tree);
+        if (paths.length > 0) {
+          cursor = renderPathsTable(
+            treeSheet,
+            cursor,
+            totalCols,
+            tree,
+            paths,
+            inlineCalcSheetMetadata
+          );
+        }
+
+        cursor = renderFooter(treeSheet, cursor, totalCols);
+        applyPageSetup(treeSheet, totalCols, Math.max(cursor - 1, 0));
 
         writeRenderDebug(treeSheet, "Render completo");
         await context.sync();

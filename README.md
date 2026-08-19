@@ -46,7 +46,7 @@ Tienen distinto `<Id>` así que podés tener ambos sideloadeados en simultáneo 
 | Capa | Archivos clave |
 |---|---|
 | **Modelos** | `src/models/types.ts`, `src/models/DecisionTree.ts` (CRUD, serialize/deserialize) |
-| **Engine** | `ExpectedValueCalculator.ts` (post-order EV), `RollbackAnalysis.ts` (camino recomendado), `SensitivityAnalysis.ts`, `PathEnumeration.ts` |
+| **Engine** | `ExpectedValueCalculator.ts` (rollback de valor/costo esperado), `DecisionStrategy.ts` (política contingente), `DecisionComparison.ts` (margen vs alternativa), `SensitivityAnalysis.ts`, `PathEnumeration.ts` |
 | **Layout** | `src/renderer/TreeLayoutEngine.ts` (Reingold-Tilford L→R) |
 | **Render Excel** | `src/renderer/ExcelShapeRenderer.ts` (orquestador), `src/excel/CalculationSheet.ts` (memoria de cálculo), `src/excel/ShapeManager.ts` |
 | **Persistencia** | `src/excel/WorkbookState.ts` — JSON chunked en hoja `veryHidden` `_DecisionTreeData` |

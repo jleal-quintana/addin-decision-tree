@@ -138,6 +138,35 @@ function AppInner() {
     [dispatch, state.tree]
   );
 
+  const handleModeKeyDown = useCallback(
+    (event: React.KeyboardEvent<HTMLButtonElement>) => {
+      if (!["ArrowLeft", "ArrowRight", "Home", "End"].includes(event.key)) return;
+      event.preventDefault();
+      const nextMode = event.key === "ArrowLeft" || event.key === "Home" ? "maximize" : "minimize";
+      handleModeChange(nextMode);
+      requestAnimationFrame(() => {
+        document.querySelector<HTMLButtonElement>(`[data-mode="${nextMode}"]`)?.focus();
+      });
+    },
+    [handleModeChange]
+  );
+
+  const handleTabKeyDown = useCallback(
+    (event: React.KeyboardEvent<HTMLButtonElement>, index: number) => {
+      if (!["ArrowLeft", "ArrowRight", "Home", "End"].includes(event.key)) return;
+      event.preventDefault();
+      let nextIndex = index;
+      if (event.key === "Home") nextIndex = 0;
+      else if (event.key === "End") nextIndex = tabs.length - 1;
+      else if (event.key === "ArrowRight") nextIndex = (index + 1) % tabs.length;
+      else nextIndex = (index - 1 + tabs.length) % tabs.length;
+      const nextTab = tabs[nextIndex];
+      dispatch({ type: "SET_TAB", tab: nextTab.id });
+      requestAnimationFrame(() => document.getElementById(`tab-${nextTab.id}`)?.focus());
+    },
+    [dispatch]
+  );
+
   useEffect(() => {
     function handleKey(event: KeyboardEvent) {
       if (!(event.ctrlKey || event.metaKey)) return;
@@ -177,7 +206,7 @@ function AppInner() {
 
       <div className="app-header">
         <div className="header-text">
-          <div className="eyebrow">Quintana Energy · Análisis de decisión</div>
+          <div className="eyebrow">Quintana · Análisis de decisión</div>
           {state.tree.rootId ? (
             <div className="case-input-wrap">
               <input
@@ -208,20 +237,24 @@ function AppInner() {
               <div className="mode-toggle" role="radiogroup" aria-label="Modo del análisis">
                 <button
                   type="button"
+                  data-mode="maximize"
                   role="radio"
                   aria-checked={!isCost}
                   className={`mode-toggle__opt ${!isCost ? "active" : ""}`}
                   onClick={() => handleModeChange("maximize")}
+                  onKeyDown={handleModeKeyDown}
                   title="Buscar el camino con mayor valor esperado (ingresos - costos)"
                 >
                   Valor
                 </button>
                 <button
                   type="button"
+                  data-mode="minimize"
                   role="radio"
                   aria-checked={isCost}
                   className={`mode-toggle__opt ${isCost ? "active" : ""}`}
                   onClick={() => handleModeChange("minimize")}
+                  onKeyDown={handleModeKeyDown}
                   title="Buscar el camino con menor costo esperado"
                 >
                   Costo
@@ -257,12 +290,13 @@ function AppInner() {
       <Toolbar showToast={showToast} drawApi={drawApi} />
 
       <div className="tab-bar" role="tablist">
-        {tabs.map((tab) => (
+        {tabs.map((tab, index) => (
           <button
             key={tab.id}
             type="button"
             className={`tab-btn ${activeTab === tab.id ? "active" : ""}`}
             onClick={() => dispatch({ type: "SET_TAB", tab: tab.id })}
+            onKeyDown={(event) => handleTabKeyDown(event, index)}
             role="tab"
             aria-selected={activeTab === tab.id}
             id={`tab-${tab.id}`}

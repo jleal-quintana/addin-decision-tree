@@ -33,6 +33,12 @@ export function addNode(tree: DecisionTreeData, parentId: string | null, type: N
   const nodes = { ...tree.nodes, [id]: newNode };
   if (parentId && nodes[parentId]) {
     nodes[parentId] = { ...nodes[parentId], childIds: [...nodes[parentId].childIds, id] };
+    if (parent?.type === "chance") {
+      const share = 1 / nodes[parentId].childIds.length;
+      for (const childId of nodes[parentId].childIds) {
+        nodes[childId] = { ...nodes[childId], probability: share };
+      }
+    }
   }
   return { ...tree, nodes, rootId: parentId === null ? id : tree.rootId, metadata: { ...tree.metadata, updatedAt: new Date().toISOString() } };
 }
@@ -114,6 +120,17 @@ export function updateNode(tree: DecisionTreeData, nodeId: string, updates: Part
   const nodes = { ...tree.nodes };
   const updatedNode = { ...node, ...updates };
 
+  // Mientras el texto de rama conserve el valor automatico inicial, renombrar
+  // el nodo tambien lo mantiene sincronizado. Una rama editada a mano no se pisa.
+  if (
+    updates.label !== undefined &&
+    updates.branchLabel === undefined &&
+    node.parentId !== null &&
+    node.branchLabel === node.label
+  ) {
+    updatedNode.branchLabel = updates.label;
+  }
+
   if (updates.type === "end" && node.type !== "end") {
     for (const childId of node.childIds) {
       for (const id of collectSubtreeIds(tree, childId)) {
@@ -181,12 +198,21 @@ export function validate(tree: DecisionTreeData): ValidationError[] {
     visiting.add(nodeId);
     visited.add(nodeId);
 
+    if (!node.label.trim()) {
+      errors.push({ nodeId, message: "Todos los nodos necesitan un nombre" });
+    }
+    if (node.cost !== null && node.cost !== undefined && !Number.isFinite(node.cost)) {
+      errors.push({ nodeId, message: `El costo de "${node.label}" debe ser un número válido` });
+    }
+
     if (node.type === "end") {
       if (node.childIds.length > 0) {
         errors.push({ nodeId, message: `"${node.label}" es terminal y no puede tener hijos` });
       }
       if (node.payoff === null || node.payoff === undefined) {
         errors.push({ nodeId, message: `"${node.label}" necesita un VAN terminal` });
+      } else if (!Number.isFinite(node.payoff)) {
+        errors.push({ nodeId, message: `El resultado de "${node.label}" debe ser un número válido` });
       }
     } else if (node.childIds.length === 0) {
       errors.push({ nodeId, message: `"${node.label}" necesita al menos un hijo` });
@@ -200,10 +226,17 @@ export function validate(tree: DecisionTreeData): ValidationError[] {
       const sum = node.childIds.reduce((acc, childId) => {
         const child = tree.nodes[childId];
         if (!child) return acc;
+        const branchName = child.branchLabel || child.label;
         if (child.probability === null || child.probability === undefined) {
-          const branchName = child.branchLabel || child.label;
           errors.push({ nodeId: childId, message: `Falta probabilidad en la rama "${branchName}"` });
           return acc;
+        }
+        if (!Number.isFinite(child.probability)) {
+          errors.push({ nodeId: childId, message: `La probabilidad de la rama "${branchName}" debe ser un número válido` });
+          return acc;
+        }
+        if (child.probability < 0 || child.probability > 1) {
+          errors.push({ nodeId: childId, message: `La probabilidad de la rama "${branchName}" debe estar entre 0% y 100%` });
         }
         return acc + child.probability;
       }, 0);

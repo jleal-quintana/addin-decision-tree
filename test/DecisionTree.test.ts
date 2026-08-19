@@ -58,6 +58,34 @@ describe("DecisionTree", () => {
     expect(tree.nodes[childId].branchLabel).toBe("No desplaza");
   });
 
+  it("keeps an automatic branch label in sync until the user customizes it", () => {
+    let tree = createEmptyTree();
+    tree = addNode(tree, null, "decision", "Root");
+    tree = addNode(tree, tree.rootId, "chance", "Alternativa inicial");
+    const childId = tree.nodes[tree.rootId!].childIds[0];
+
+    tree = updateNode(tree, childId, { label: "Alternativa renombrada" });
+    expect(tree.nodes[childId].branchLabel).toBe("Alternativa renombrada");
+
+    tree = updateNode(tree, childId, { branchLabel: "Texto manual" });
+    tree = updateNode(tree, childId, { label: "Nombre del nodo" });
+    expect(tree.nodes[childId].branchLabel).toBe("Texto manual");
+  });
+
+  it("distributes probabilities when a new uncertainty outcome is added", () => {
+    let tree = createEmptyTree();
+    tree = addNode(tree, null, "decision", "Root");
+    tree = addNode(tree, tree.rootId, "chance", "Mercado");
+    const chanceId = tree.nodes[tree.rootId!].childIds[0];
+    tree = addNode(tree, chanceId, "end", "Favorable");
+    tree = addNode(tree, chanceId, "end", "Adverso");
+
+    const probabilities = tree.nodes[chanceId].childIds.map(
+      (id) => tree.nodes[id].probability
+    );
+    expect(probabilities).toEqual([0.5, 0.5]);
+  });
+
   it("inserts an intermediate step without dropping the existing subtree", () => {
     let tree = createEmptyTree();
     tree = addNode(tree, null, "decision", "Intervenir pozo?");
@@ -162,5 +190,19 @@ describe("DecisionTree", () => {
     expect(errors.some((message) => message.includes("raiz debe ser un nodo de decision"))).toBe(true);
     expect(errors.some((message) => message.includes("hijos duplicados"))).toBe(true);
     expect(errors.some((message) => message.includes("80.0%"))).toBe(true);
+  });
+
+  it("rejects empty labels and out-of-range probabilities", () => {
+    let tree = createEmptyTree();
+    tree = addNode(tree, null, "decision", "Root");
+    tree = addNode(tree, tree.rootId, "chance", "Mercado");
+    const chanceId = tree.nodes[tree.rootId!].childIds[0];
+    tree = addNode(tree, chanceId, "end", "");
+    const firstId = tree.nodes[chanceId].childIds[0];
+    tree = updateNode(tree, firstId, { probability: 1.2 });
+
+    const errors = validate(tree).map((error) => error.message);
+    expect(errors).toContain("Todos los nodos necesitan un nombre");
+    expect(errors.some((message) => message.includes("entre 0% y 100%"))).toBe(true);
   });
 });

@@ -1,4 +1,5 @@
-import React, { useEffect, useRef } from "react";
+import React, { useId, useRef } from "react";
+import { useDialogFocus } from "../hooks/useDialogFocus";
 
 interface ConfirmDialogProps {
   open: boolean;
@@ -22,32 +23,24 @@ export function ConfirmDialog({
   onCancel,
 }: ConfirmDialogProps) {
   const confirmRef = useRef<HTMLButtonElement>(null);
-
-  useEffect(() => {
-    if (!open) return;
-    confirmRef.current?.focus();
-    function handleKey(event: KeyboardEvent) {
-      if (event.key === "Escape") {
-        event.preventDefault();
-        onCancel();
-      }
-    }
-    document.addEventListener("keydown", handleKey);
-    return () => document.removeEventListener("keydown", handleKey);
-  }, [open, onCancel]);
+  const dialogRef = useRef<HTMLDivElement>(null);
+  const titleId = useId();
+  useDialogFocus(open, dialogRef, confirmRef, onCancel);
 
   if (!open) return null;
 
   return (
     <div className="overlay-backdrop" onClick={onCancel} role="presentation">
       <div
+        ref={dialogRef}
         className="confirm-dialog"
         role="alertdialog"
         aria-modal="true"
-        aria-labelledby="confirm-dialog-title"
+        aria-labelledby={titleId}
+        tabIndex={-1}
         onClick={(e) => e.stopPropagation()}
       >
-        <h2 id="confirm-dialog-title" className="confirm-dialog__title">
+        <h2 id={titleId} className="confirm-dialog__title">
           {title}
         </h2>
         <div className="confirm-dialog__body">{body}</div>

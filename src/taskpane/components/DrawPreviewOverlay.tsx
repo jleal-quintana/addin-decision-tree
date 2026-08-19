@@ -1,6 +1,7 @@
-import React, { useEffect, useMemo, useRef } from "react";
+import React, { useMemo, useRef } from "react";
 import { DecisionTreeData } from "../../models/types";
 import { layoutTreeCompact } from "../utils/treeLayout";
+import { useDialogFocus } from "../hooks/useDialogFocus";
 import { countNodesByType } from "../utils/validationIssues";
 
 interface DrawPreviewOverlayProps {
@@ -21,18 +22,8 @@ function formatCurrency(value: number | null): string {
 
 export function DrawPreviewOverlay({ tree, onConfirm, onCancel }: DrawPreviewOverlayProps) {
   const confirmRef = useRef<HTMLButtonElement>(null);
-
-  useEffect(() => {
-    confirmRef.current?.focus();
-    function handleKey(event: KeyboardEvent) {
-      if (event.key === "Escape") {
-        event.preventDefault();
-        onCancel();
-      }
-    }
-    document.addEventListener("keydown", handleKey);
-    return () => document.removeEventListener("keydown", handleKey);
-  }, [onCancel]);
+  const dialogRef = useRef<HTMLDivElement>(null);
+  useDialogFocus(true, dialogRef, confirmRef, onCancel);
 
   const W = 340;
   const H = 160;
@@ -55,10 +46,12 @@ export function DrawPreviewOverlay({ tree, onConfirm, onCancel }: DrawPreviewOve
       role="presentation"
     >
       <div
+        ref={dialogRef}
         className="draw-preview"
         role="dialog"
         aria-modal="true"
         aria-labelledby="draw-preview-title"
+        tabIndex={-1}
         onClick={(e) => e.stopPropagation()}
       >
         <div className="draw-preview__header">

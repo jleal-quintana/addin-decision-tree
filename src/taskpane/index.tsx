@@ -16,7 +16,21 @@ function renderBootstrapError(title: string, message: string) {
   );
 }
 
-if (typeof Office === "undefined") {
+function renderApp() {
+  root.render(
+    <TreeProvider>
+      <App />
+    </TreeProvider>
+  );
+}
+
+const isLocalPreview =
+  ["localhost", "127.0.0.1"].includes(window.location.hostname) &&
+  new URLSearchParams(window.location.search).has("preview");
+
+if (isLocalPreview) {
+  renderApp();
+} else if (typeof Office === "undefined") {
   renderBootstrapError(
     "Office no disponible",
     "El runtime de Office no está cargado. Abrí este panel desde Excel Desktop."
@@ -47,10 +61,6 @@ if (typeof Office === "undefined") {
       return;
     }
 
-    root.render(
-      <TreeProvider>
-        <App />
-      </TreeProvider>
-    );
+    renderApp();
   });
 }
