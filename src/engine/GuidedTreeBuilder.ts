@@ -4,6 +4,8 @@ export interface GuidedBranchInput {
   id: string;
   label: string;
   probability: number | null;
+  /** Costo de recorrer esta rama. Se aplica una sola vez al nodo destino. */
+  cost?: number | null;
   target: GuidedNodeInput;
 }
 
@@ -45,7 +47,8 @@ function nodeBase(
   label: string,
   branchLabel: string | null,
   parentId: string | null,
-  probability: number | null
+  probability: number | null,
+  cost: number | null
 ): TreeNode {
   return {
     id,
@@ -53,7 +56,7 @@ function nodeBase(
     label,
     branchLabel,
     payoff: type === "end" ? 0 : null,
-    cost: null,
+    cost,
     time: null,
     expectedValue: null,
     isOptimal: false,
@@ -74,7 +77,8 @@ export function buildGuidedTree(input: GuidedTreeInput): DecisionTreeData {
     draft: GuidedNodeInput,
     parentId: string | null,
     branchLabel: string | null,
-    probability: number | null
+    probability: number | null,
+    cost: number | null
   ): string => {
     if (nodes[draft.id]) {
       throw new Error(`El asistente generó un identificador duplicado: ${draft.id}`);
@@ -93,7 +97,8 @@ export function buildGuidedTree(input: GuidedTreeInput): DecisionTreeData {
       draft.label.trim() || fallbackLabel,
       branchLabel,
       parentId,
-      probability
+      probability,
+      cost
     );
     nodes[node.id] = node;
 
@@ -107,7 +112,8 @@ export function buildGuidedTree(input: GuidedTreeInput): DecisionTreeData {
         branch.target,
         node.id,
         branch.label.trim(),
-        draft.type === "chance" ? branch.probability : null
+        draft.type === "chance" ? branch.probability : null,
+        branch.cost ?? null
       );
       node.childIds.push(childId);
     }
@@ -115,7 +121,7 @@ export function buildGuidedTree(input: GuidedTreeInput): DecisionTreeData {
     return node.id;
   };
 
-  const rootId = visit(input.root, null, null, null);
+  const rootId = visit(input.root, null, null, null, null);
   return {
     rootId,
     nodes,

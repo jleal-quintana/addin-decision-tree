@@ -126,15 +126,14 @@ El campo `mode` en el código puede quedarse como `"maximize" | "minimize"` por 
 
 La primera pantalla propone una única acción dominante: **Empezar paso a paso**. No muestra tabs, toolbar ni decisiones técnicas hasta que exista un árbol. Cargar desde el libro, usar el editor avanzado y abrir ejemplos resueltos quedan como acciones secundarias y progresivamente reveladas.
 
-El asistente crea un árbol real, no un tutorial separado, mediante cinco momentos:
+El asistente crea un árbol real, no un tutorial separado, mediante cuatro momentos:
 
 1. **La decisión:** pregunta principal, nombre opcional y criterio (mayor valor o menor costo).
 2. **Las alternativas:** dos opciones como mínimo, con nombres editables.
-3. **Los resultados:** para cada alternativa, resultado conocido o escenarios inciertos con probabilidad y valor/costo. Las probabilidades se rebalancean a 100%.
-4. **Las continuaciones:** mapa de resultados finales. Cualquier rama puede terminar, continuar con otra decisión o abrir otra incertidumbre. El patrón es recursivo y no impone un máximo artificial de profundidad; sólo se muestra la etapa que la persona está editando.
-5. **Revisión:** comparación del valor esperado, conteo de decisiones/incertidumbres/niveles y recomendación preliminar antes de crear el árbol editable.
+3. **La estructura:** cada rama pregunta directamente qué ocurre después: termina con un valor, continúa con otra decisión o depende de un evento incierto. En el mismo bloque se carga el costo de recorrer la rama; el costo se aplica exactamente una vez. El patrón es recursivo y no impone un máximo artificial de profundidad; sólo se muestra la etapa que la persona está editando.
+4. **Revisión:** comparación del valor esperado, conteo de decisiones/incertidumbres/niveles y recomendación preliminar antes de crear el árbol editable.
 
-Las alternativas y los resultados por incertidumbre tampoco tienen un máximo fijo. Cada nodo de incertidumbre rebalancea sus propias probabilidades a 100%, incluso en etapas posteriores.
+Las alternativas y los eventos por incertidumbre tampoco tienen un máximo fijo. Cada nodo de incertidumbre rebalancea sus propias probabilidades a 100%, incluso en etapas posteriores. “Evento” se reserva para lo que puede ocurrir; “resultado final” se usa únicamente cuando la rama termina en un valor económico.
 
 El modo avanzado sigue disponible para usuarios expertos que quieran comenzar desde un nodo raíz vacío. Los ejemplos se muestran dentro de un disclosure cerrado para que ayuden sin competir con el flujo principal.
 

@@ -1,4 +1,4 @@
-import React, { useEffect, useMemo, useState } from "react";
+import React, { useMemo, useState } from "react";
 import { compareRootDecision } from "../../engine/DecisionComparison";
 import {
   buildGuidedTree,
@@ -13,6 +13,7 @@ interface DraftBranch {
   id: string;
   label: string;
   probability: number;
+  cost: string;
   target: DraftNode;
 }
 
@@ -39,10 +40,12 @@ interface DraftResultNode {
 
 type DraftInternalNode = DraftDecisionNode | DraftChanceNode;
 type DraftNode = DraftInternalNode | DraftResultNode;
+type DestinationType = DraftNode["type"];
 
 interface LeafInfo {
   node: DraftResultNode;
   path: string[];
+  cost: string;
 }
 
 interface DraftStats {
@@ -77,7 +80,8 @@ function createBranch(label: string, probability: number): DraftBranch {
     id: nextDraftId("branch"),
     label,
     probability,
-    target: createResult(),
+    cost: "",
+    target: createResult(`Resultado de ${label}`),
   };
 }
 
@@ -95,7 +99,7 @@ function createChance(label = ""): DraftChanceNode {
     id: nextDraftId("chance"),
     type: "chance",
     label,
-    branches: [createBranch("Resultado favorable", 0.5), createBranch("Resultado adverso", 0.5)],
+    branches: [createBranch("Evento favorable", 0.5), createBranch("Evento adverso", 0.5)],
   };
 }
 
@@ -103,6 +107,11 @@ function parseValue(raw: string): number | null {
   if (!raw.trim()) return null;
   const value = Number(raw.replace(",", "."));
   return Number.isFinite(value) ? value : null;
+}
+
+function parseCost(raw: string): number | null {
+  const value = parseValue(raw);
+  return value !== null && value >= 0 ? value : null;
 }
 
 function formatCurrency(value: number): string {
@@ -191,10 +200,14 @@ function findPath(node: DraftNode, nodeId: string, path: string[] = []): string[
   return null;
 }
 
-function collectLeaves(node: DraftNode, path: string[] = []): LeafInfo[] {
-  if (node.type === "result") return [{ node, path }];
+function collectLeaves(node: DraftNode, path: string[] = [], cost = ""): LeafInfo[] {
+  if (node.type === "result") return [{ node, path, cost }];
   return node.branches.flatMap((branch) =>
-    collectLeaves(branch.target, [...path, branch.label.trim() || "Rama sin nombre"])
+    collectLeaves(
+      branch.target,
+      [...path, branch.label.trim() || "Rama sin nombre"],
+      branch.cost
+    )
   );
 }
 
@@ -226,20 +239,35 @@ function getDraftStats(root: DraftNode): DraftStats {
 
 function collectDraftIssues(node: DraftNode): string[] {
   if (node.type === "result") {
-    return parseValue(node.value) === null ? [`Falta el valor de “${node.label || "Resultado final"}”.`] : [];
+    return parseValue(node.value) === null
+      ? [`Falta el valor de “${node.label || "Resultado final"}”.`]
+      : [];
   }
 
   const issues: string[] = [];
   if (!node.label.trim()) {
-    issues.push(node.type === "decision" ? "Falta la pregunta de una decisión." : "Falta el nombre de una incertidumbre.");
+    issues.push(
+      node.type === "decision"
+        ? "Falta la pregunta de una decisión."
+        : "Falta el nombre de una incertidumbre."
+    );
   }
-  if (node.branches.length < 2) issues.push(`“${node.label || "Esta etapa"}” necesita al menos dos ramas.`);
+  if (node.branches.length < 2) {
+    issues.push(`“${node.label || "Esta etapa"}” necesita al menos dos ramas.`);
+  }
   if (node.type === "chance") {
     const sum = node.branches.reduce((total, branch) => total + branch.probability, 0);
-    if (Math.abs(sum - 1) > 0.0001) issues.push(`Las probabilidades de “${node.label || "Esta incertidumbre"}” no suman 100%.`);
+    if (Math.abs(sum - 1) > 0.0001) {
+      issues.push(`Las probabilidades de “${node.label || "Esta incertidumbre"}” no suman 100%.`);
+    }
   }
   for (const branch of node.branches) {
-    if (!branch.label.trim()) issues.push(`Hay una rama sin nombre en “${node.label || "Esta etapa"}”.`);
+    if (!branch.label.trim()) {
+      issues.push(`Hay una rama sin nombre en “${node.label || "Esta etapa"}”.`);
+    }
+    if (branch.cost.trim() && parseCost(branch.cost) === null) {
+      issues.push(`El costo de “${branch.label || "una rama"}” debe ser cero o mayor.`);
+    }
     issues.push(...collectDraftIssues(branch.target));
   }
   return issues;
@@ -259,6 +287,7 @@ function normalizeNode(node: DraftNode): GuidedNodeInput {
     id: branch.id,
     label: branch.label,
     probability: node.type === "chance" ? branch.probability : null,
+    cost: parseCost(branch.cost),
     target: normalizeNode(branch.target),
   }));
   return node.type === "decision"
@@ -266,25 +295,27 @@ function normalizeNode(node: DraftNode): GuidedNodeInput {
     : { id: node.id, type: "chance", label: node.label, branches };
 }
 
-function isExpandedInitialBranch(branch: DraftBranch): boolean {
-  if (branch.target.type === "decision") return true;
-  return branch.target.type === "chance" && branch.target.branches.some((item) => item.target.type !== "result");
-}
+const destinationOptions: Array<{
+  type: DestinationType;
+  symbol: string;
+  label: string;
+}> = [
+  { type: "result", symbol: "△", label: "Valor final" },
+  { type: "decision", symbol: "□", label: "Decisión" },
+  { type: "chance", symbol: "○", label: "Evento incierto" },
+];
 
 export function GuidedTreeWizard({ onCancel, onComplete }: GuidedTreeWizardProps) {
   const [step, setStep] = useState(0);
-  const [scenarioIndex, setScenarioIndex] = useState(0);
   const [name, setName] = useState("");
   const [mode, setMode] = useState<"maximize" | "minimize">("maximize");
   const [root, setRoot] = useState<DraftDecisionNode>(() => createDecision());
   const [editingNodeId, setEditingNodeId] = useState<string | null>(null);
-  const [continuingLeafId, setContinuingLeafId] = useState<string | null>(null);
 
-  const currentAlternative = root.branches[scenarioIndex];
   const editingNode = editingNodeId ? findNode(root, editingNodeId) : null;
   const editingInternal = editingNode && editingNode.type !== "result" ? editingNode : null;
   const leaves = useMemo(() => collectLeaves(root), [root]);
-  const stages = useMemo(() => collectStages(root).filter((stage) => stage.node.id !== root.id), [root]);
+  const stages = useMemo(() => collectStages(root), [root]);
   const stats = useMemo(() => getDraftStats(root), [root]);
   const draftIssues = useMemo(() => collectDraftIssues(root), [root]);
 
@@ -300,10 +331,6 @@ export function GuidedTreeWizard({ onCancel, onComplete }: GuidedTreeWizardProps
   const evMap = useMemo(() => calculateExpectedValues(tree), [tree]);
   const comparison = useMemo(() => compareRootDecision(tree), [tree]);
 
-  useEffect(() => {
-    setScenarioIndex((index) => Math.min(index, Math.max(root.branches.length - 1, 0)));
-  }, [root.branches.length]);
-
   const setRootNode = (node: DraftNode) => setRoot(node as DraftDecisionNode);
   const updateNode = (nodeId: string, update: (node: DraftNode) => DraftNode) =>
     setRoot((current) => mapNode(current, nodeId, update) as DraftDecisionNode);
@@ -312,30 +339,35 @@ export function GuidedTreeWizard({ onCancel, onComplete }: GuidedTreeWizardProps
     update: (branch: DraftBranch, parent: DraftInternalNode) => DraftBranch
   ) => setRoot((current) => mapBranch(current, branchId, update) as DraftDecisionNode);
 
+  const renameBranch = (branchId: string, label: string) =>
+    updateBranch(branchId, (current) => ({
+      ...current,
+      label,
+      target: current.target.type === "result"
+        ? { ...current.target, label: `Resultado de ${label}` }
+        : current.target,
+    }));
+
   const setQuestion = (value: string) =>
     updateNode(root.id, (node) => ({ ...(node as DraftDecisionNode), label: value }));
 
-  const setInitialKind = (branch: DraftBranch, kind: "result" | "chance") => {
+  const setBranchDestination = (branch: DraftBranch, type: DestinationType) => {
+    if (branch.target.type === type) return;
+    const hasDestinationData = branch.target.type !== "result" || branch.target.value.trim().length > 0;
+    if (
+      hasDestinationData &&
+      !window.confirm("Cambiar el destino eliminará la etapa o el valor cargado en esta rama. ¿Continuar?")
+    ) {
+      return;
+    }
     updateBranch(branch.id, (current) => {
-      if (kind === "result") {
-        const existingValue = current.target.type === "result" ? current.target.value : "";
-        return {
-          ...current,
-          target: createResult(`Resultado de ${current.label}`, existingValue),
-        };
-      }
-      return {
-        ...current,
-        target: createChance(`Resultados de ${current.label}`),
-      };
+      const target = type === "result"
+        ? createResult(`Resultado de ${current.label}`)
+        : type === "decision"
+          ? createDecision()
+          : createChance();
+      return { ...current, target };
     });
-  };
-
-  const continueLeaf = (leafId: string, type: "decision" | "chance") => {
-    const next = type === "decision" ? createDecision() : createChance();
-    setRoot((current) => mapNode(current, leafId, () => next) as DraftDecisionNode);
-    setContinuingLeafId(null);
-    setEditingNodeId(next.id);
   };
 
   const addBranchToNode = (node: DraftInternalNode) => {
@@ -343,7 +375,7 @@ export function GuidedTreeWizard({ onCancel, onComplete }: GuidedTreeWizardProps
       if (current.type === "result") return current;
       const label = current.type === "decision"
         ? `Alternativa ${current.branches.length + 1}`
-        : `Resultado ${current.branches.length + 1}`;
+        : `Evento ${current.branches.length + 1}`;
       const branches = [...current.branches, createBranch(label, 0)];
       return {
         ...current,
@@ -365,61 +397,57 @@ export function GuidedTreeWizard({ onCancel, onComplete }: GuidedTreeWizardProps
 
   const stepValid = useMemo(() => {
     if (step === 0) return root.label.trim().length > 0;
-    if (step === 1) return root.branches.length >= 2 && root.branches.every((branch) => branch.label.trim());
-    if (step === 2 && currentAlternative) return collectDraftIssues(currentAlternative.target).length === 0;
-    if (step === 3) return draftIssues.length === 0 && !editingNodeId;
+    if (step === 1) {
+      return root.branches.length >= 2 && root.branches.every((branch) => branch.label.trim());
+    }
+    if (step === 2) return draftIssues.length === 0 && !editingNodeId;
     return true;
-  }, [currentAlternative, draftIssues.length, editingNodeId, root.branches, root.label, step]);
+  }, [draftIssues.length, editingNodeId, root.branches, root.label, step]);
 
   const goNext = () => {
     if (!stepValid) return;
-    if (step === 2 && scenarioIndex < root.branches.length - 1) {
-      setScenarioIndex((index) => index + 1);
+    if (step === 1) {
+      setStep(2);
+      setEditingNodeId(root.id);
       return;
     }
-    setStep((current) => Math.min(current + 1, 4));
+    setStep((current) => Math.min(current + 1, 3));
   };
 
   const goBack = () => {
-    if (step === 3 && editingNodeId) {
+    if (step === 2 && editingNodeId) {
       setEditingNodeId(null);
-      setContinuingLeafId(null);
-      return;
-    }
-    if (step === 2 && scenarioIndex > 0) {
-      setScenarioIndex((index) => index - 1);
       return;
     }
     if (step === 3) {
-      setScenarioIndex(Math.max(root.branches.length - 1, 0));
       setStep(2);
-      return;
-    }
-    if (step === 4) {
-      setStep(3);
       return;
     }
     setStep((current) => Math.max(current - 1, 0));
   };
 
-  const stepTitles = ["La decisión", "Las alternativas", "Los resultados", "Las continuaciones", "Revisión"];
-
-  const renderContinuationPicker = (leaf: LeafInfo) => (
-    <div className="guided-continuation-picker" role="group" aria-label={`Continuar ${leaf.path.join(", ")}`}>
-      <p>¿Qué ocurre después de esta rama?</p>
-      <div>
-        <button type="button" onClick={() => continueLeaf(leaf.node.id, "decision")}>
-          <strong>Nueva decisión</strong>
-          <span>La persona elige el próximo camino</span>
-        </button>
-        <button type="button" onClick={() => continueLeaf(leaf.node.id, "chance")}>
-          <strong>Nueva incertidumbre</strong>
-          <span>Puede ocurrir más de un resultado</span>
-        </button>
+  const renderDestinationSelector = (branch: DraftBranch) => (
+    <div className="guided-destination">
+      <div className="guided-destination-label">Después de esta rama</div>
+      <div
+        className="guided-destination-options"
+        role="radiogroup"
+        aria-label={`Destino de ${branch.label}`}
+      >
+        {destinationOptions.map((option) => (
+          <button
+            key={option.type}
+            type="button"
+            role="radio"
+            aria-checked={branch.target.type === option.type}
+            className={branch.target.type === option.type ? "selected" : ""}
+            onClick={() => setBranchDestination(branch, option.type)}
+          >
+            <span aria-hidden="true">{option.symbol}</span>
+            {option.label}
+          </button>
+        ))}
       </div>
-      <button type="button" className="guided-exit" onClick={() => setContinuingLeafId(null)}>
-        Cancelar
-      </button>
     </div>
   );
 
@@ -428,9 +456,9 @@ export function GuidedTreeWizard({ onCancel, onComplete }: GuidedTreeWizardProps
     return (
       <div className="guided-stage-editor">
         <button type="button" className="guided-exit" onClick={() => setEditingNodeId(null)}>
-          Volver al mapa de ramas
+          Volver al resumen
         </button>
-        <div className="guided-stage-path">{path.join(" › ")}</div>
+        <div className="guided-stage-path">{path.length > 0 ? path.join(" › ") : "Inicio"}</div>
         <label className="guided-field">
           <span>{node.type === "decision" ? "Pregunta de esta decisión" : "Nombre de la incertidumbre"}</span>
           <input
@@ -440,38 +468,43 @@ export function GuidedTreeWizard({ onCancel, onComplete }: GuidedTreeWizardProps
             onChange={(event) =>
               updateNode(node.id, (current) => ({ ...current, label: event.target.value }))
             }
-            placeholder={node.type === "decision" ? "Ej: ¿Reparar o abandonar?" : "Ej: Resultado de la prueba"}
+            placeholder={
+              node.type === "decision"
+                ? "Ej: ¿Perforar o vender el área?"
+                : "Ej: Resultado del estudio sísmico"
+            }
           />
         </label>
+        <p className="guided-stage-note">
+          Definí qué ocurre al recorrer cada rama. El costo se aplica una sola vez.
+        </p>
 
         <div className="guided-stage-branches">
-          {node.branches.map((branch, index) => {
-            const targetLeaf = branch.target.type === "result"
-              ? { node: branch.target, path: [...path, branch.label] }
-              : null;
-            return (
-              <section key={branch.id} className="guided-stage-branch">
-                <div className="guided-branch-head">
-                  <span>{node.type === "decision" ? "Alternativa" : "Resultado"} {index + 1}</span>
-                  {node.branches.length > 2 && (
-                    <button
-                      type="button"
-                      className="guided-remove"
-                      aria-label={`Eliminar ${branch.label}`}
-                      onClick={() => removeBranchFromNode(node, branch.id)}
-                    >
-                      ×
-                    </button>
-                  )}
-                </div>
-                <input
-                  type="text"
-                  aria-label={`${node.type === "decision" ? "Alternativa" : "Resultado"} ${index + 1}`}
-                  value={branch.label}
-                  onChange={(event) =>
-                    updateBranch(branch.id, (current) => ({ ...current, label: event.target.value }))
-                  }
-                />
+          {node.branches.map((branch, index) => (
+            <section key={branch.id} className="guided-stage-branch">
+              <div className="guided-branch-head">
+                <span>{node.type === "decision" ? "Alternativa" : "Evento"} {index + 1}</span>
+                {node.branches.length > 2 && (
+                  <button
+                    type="button"
+                    className="guided-remove"
+                    aria-label={`Eliminar ${branch.label}`}
+                    onClick={() => removeBranchFromNode(node, branch.id)}
+                  >
+                    ×
+                  </button>
+                )}
+              </div>
+              <input
+                type="text"
+                aria-label={`${node.type === "decision" ? "Alternativa" : "Evento"} ${index + 1}`}
+                value={branch.label}
+                onChange={(event) =>
+                  renameBranch(branch.id, event.target.value)
+                }
+              />
+
+              <div className={`guided-branch-economics ${node.type === "decision" ? "guided-branch-economics--single" : ""}`}>
                 {node.type === "chance" && (
                   <label className="guided-compact-field">
                     <span>Probabilidad</span>
@@ -501,81 +534,84 @@ export function GuidedTreeWizard({ onCancel, onComplete }: GuidedTreeWizardProps
                     </div>
                   </label>
                 )}
+                <label className="guided-compact-field">
+                  <span>Costo de esta rama</span>
+                  <div className="guided-prefix-input">
+                    <span>$</span>
+                    <input
+                      type="number"
+                      min="0"
+                      inputMode="decimal"
+                      value={branch.cost}
+                      aria-label={`Costo de ${branch.label}`}
+                      placeholder="0"
+                      onChange={(event) =>
+                        updateBranch(branch.id, (current) => ({ ...current, cost: event.target.value }))
+                      }
+                    />
+                  </div>
+                </label>
+              </div>
 
-                {branch.target.type === "result" ? (
-                  <div className="guided-stage-target">
-                    <label className="guided-compact-field">
-                      <span>{mode === "minimize" ? "Costo terminal" : "Valor terminal"}</span>
-                      <div className="guided-prefix-input">
-                        <span>$</span>
-                        <input
-                          type="number"
-                          inputMode="decimal"
-                          value={branch.target.value}
-                          aria-label={`${mode === "minimize" ? "Costo" : "Valor"} de ${branch.label}`}
-                          onChange={(event) =>
-                            updateNode(branch.target.id, (current) =>
-                              current.type === "result" ? { ...current, value: event.target.value } : current
-                            )
-                          }
-                        />
-                      </div>
-                    </label>
-                    <button
-                      type="button"
-                      className="guided-continue-link"
-                      onClick={() => setContinuingLeafId(branch.target.id)}
-                    >
-                      Esta rama continúa…
-                    </button>
-                    {continuingLeafId === branch.target.id && targetLeaf && renderContinuationPicker(targetLeaf)}
+              {renderDestinationSelector(branch)}
+
+              {branch.target.type === "result" ? (
+                <label className="guided-terminal-value">
+                  <span>{mode === "minimize" ? "Costo final" : "Valor final"}</span>
+                  <div className="guided-prefix-input">
+                    <span>$</span>
+                    <input
+                      type="number"
+                      inputMode="decimal"
+                      value={branch.target.value}
+                      aria-label={`${mode === "minimize" ? "Costo" : "Valor"} final de ${branch.label}`}
+                      onChange={(event) =>
+                        updateNode(branch.target.id, (current) =>
+                          current.type === "result"
+                            ? { ...current, value: event.target.value }
+                            : current
+                        )
+                      }
+                    />
                   </div>
-                ) : (
-                  <div className="guided-nested-stage">
-                    <span className={`guided-node-kind guided-node-kind--${branch.target.type}`}>
-                      {branch.target.type === "decision" ? "Decisión" : "Incertidumbre"}
-                    </span>
-                    <strong>{branch.target.label || "Etapa sin nombre"}</strong>
-                    <button type="button" onClick={() => setEditingNodeId(branch.target.id)}>
-                      Editar etapa
-                    </button>
-                  </div>
-                )}
-              </section>
-            );
-          })}
+                </label>
+              ) : (
+                <div className="guided-nested-stage">
+                  <span className={`guided-node-kind guided-node-kind--${branch.target.type}`}>
+                    {branch.target.type === "decision" ? "Decisión" : "Incertidumbre"}
+                  </span>
+                  <strong>{branch.target.label || "Etapa sin definir"}</strong>
+                  <button type="button" onClick={() => setEditingNodeId(branch.target.id)}>
+                    {branch.target.label ? "Editar etapa" : "Definir etapa"}
+                  </button>
+                </div>
+              )}
+            </section>
+          ))}
         </div>
 
         <button type="button" className="guided-add" onClick={() => addBranchToNode(node)}>
-          + Agregar {node.type === "decision" ? "otra alternativa" : "otro resultado"}
+          + Agregar {node.type === "decision" ? "otra alternativa" : "otro evento"}
         </button>
-        <div className="guided-stage-actions">
-          <button
-            type="button"
-            className="guided-danger-link"
-            onClick={() => {
-              setRoot((current) => mapNode(current, node.id, () => createResult()) as DraftDecisionNode);
-              setEditingNodeId(null);
-            }}
-          >
-            Hacer que esta rama termine aquí
-          </button>
-          <button type="button" className="guided-stage-done" onClick={() => setEditingNodeId(null)}>
-            Listo con esta etapa
-          </button>
-        </div>
+        <button type="button" className="guided-stage-done" onClick={() => setEditingNodeId(null)}>
+          Listo con esta etapa
+        </button>
       </div>
     );
   };
+
+  const stepTitles = ["La decisión", "Las alternativas", "La estructura", "Revisión"];
 
   return (
     <section className="guided-wizard" aria-labelledby="guided-title">
       <div className="guided-topline">
         <button type="button" className="guided-exit" onClick={onCancel}>Salir del asistente</button>
-        <span>Paso {step + 1} de 5</span>
+        <span>Paso {step + 1} de 4</span>
       </div>
-      <div className="guided-progress guided-progress--five" aria-label={`Paso ${step + 1} de 5`}>
-        {[0, 1, 2, 3, 4].map((index) => <span key={index} className={index <= step ? "active" : ""} />)}
+      <div className="guided-progress" aria-label={`Paso ${step + 1} de 4`}>
+        {[0, 1, 2, 3].map((index) => (
+          <span key={index} className={index <= step ? "active" : ""} />
+        ))}
       </div>
 
       <header className="guided-heading">
@@ -583,9 +619,8 @@ export function GuidedTreeWizard({ onCancel, onComplete }: GuidedTreeWizardProps
         <h2 id="guided-title">
           {step === 0 && "¿Qué necesitás decidir?"}
           {step === 1 && "¿Entre qué alternativas?"}
-          {step === 2 && currentAlternative && `¿Qué puede pasar con “${currentAlternative.label}”?`}
-          {step === 3 && "¿Alguna rama continúa?"}
-          {step === 4 && "Revisá el análisis antes de crearlo"}
+          {step === 2 && "¿Qué ocurre en cada rama?"}
+          {step === 3 && "Revisá el análisis antes de crearlo"}
         </h2>
       </header>
 
@@ -627,7 +662,7 @@ export function GuidedTreeWizard({ onCancel, onComplete }: GuidedTreeWizardProps
 
       {step === 1 && (
         <div className="guided-fields">
-          <p className="guided-intro">Empezá con dos. Podés agregar cinco, diez o todas las alternativas que necesites.</p>
+          <p className="guided-intro">Empezá con dos. Podés agregar todas las alternativas que necesites.</p>
           <div className="guided-alternatives">
             {root.branches.map((branch, index) => (
               <div key={branch.id} className="guided-alternative-row">
@@ -638,7 +673,7 @@ export function GuidedTreeWizard({ onCancel, onComplete }: GuidedTreeWizardProps
                   type="text"
                   value={branch.label}
                   onFocus={(event) => event.target.select()}
-                  onChange={(event) => updateBranch(branch.id, (current) => ({ ...current, label: event.target.value }))}
+                  onChange={(event) => renameBranch(branch.id, event.target.value)}
                 />
                 {root.branches.length > 2 && (
                   <button
@@ -665,100 +700,12 @@ export function GuidedTreeWizard({ onCancel, onComplete }: GuidedTreeWizardProps
         </div>
       )}
 
-      {step === 2 && currentAlternative && (
-        <div className="guided-fields">
-          <div className="guided-scenario-count">Alternativa {scenarioIndex + 1} de {root.branches.length}</div>
-          {isExpandedInitialBranch(currentAlternative) ? (
-            <div className="guided-expanded-note">
-              Esta alternativa ya contiene decisiones posteriores. Podés editarla en el paso siguiente sin perder sus ramas.
-            </div>
-          ) : (
-            <>
-              <fieldset className="guided-kind-toggle" role="radiogroup">
-                <legend>Tipo de resultado</legend>
-                <button type="button" role="radio" aria-checked={currentAlternative.target.type === "result"} className={currentAlternative.target.type === "result" ? "selected" : ""} onClick={() => setInitialKind(currentAlternative, "result")}>Resultado conocido</button>
-                <button type="button" role="radio" aria-checked={currentAlternative.target.type === "chance"} className={currentAlternative.target.type === "chance" ? "selected" : ""} onClick={() => setInitialKind(currentAlternative, "chance")}>Hay incertidumbre</button>
-              </fieldset>
-
-              {currentAlternative.target.type === "result" && (
-                <label className="guided-field">
-                  <span>{mode === "minimize" ? "Costo total ($)" : "Valor neto o VAN ($)"}</span>
-                  <input
-                    autoFocus
-                    type="number"
-                    inputMode="decimal"
-                    aria-label={mode === "minimize" ? "Costo total ($)" : "Valor neto o VAN ($)"}
-                    value={currentAlternative.target.value}
-                    onChange={(event) => updateNode(currentAlternative.target.id, (node) => node.type === "result" ? { ...node, value: event.target.value } : node)}
-                    placeholder="0"
-                  />
-                </label>
-              )}
-
-              {currentAlternative.target.type === "chance" && (
-                <div className="guided-outcomes">
-                  <p className="guided-intro">Las probabilidades se ajustan automáticamente para mantener el 100%.</p>
-                  {currentAlternative.target.branches.map((outcome, index) => (
-                    <div key={outcome.id} className="guided-outcome">
-                      <div className="guided-outcome-name">
-                        <label htmlFor={`guided-outcome-${outcome.id}`}>Resultado {index + 1}</label>
-                        {currentAlternative.target.type === "chance" && currentAlternative.target.branches.length > 2 && (
-                          <button
-                            type="button"
-                            className="guided-remove"
-                            aria-label={`Eliminar ${outcome.label}`}
-                            onClick={() => updateNode(currentAlternative.target.id, (node) => node.type === "chance" ? { ...node, branches: equalizeBranches(node.branches.filter((item) => item.id !== outcome.id)) } : node)}
-                          >×</button>
-                        )}
-                      </div>
-                      <input id={`guided-outcome-${outcome.id}`} type="text" value={outcome.label} onChange={(event) => updateBranch(outcome.id, (branch) => ({ ...branch, label: event.target.value }))} />
-                      <div className="guided-outcome-values">
-                        <label>
-                          <span>Probabilidad</span>
-                          <div className="guided-suffix-input">
-                            <input
-                              type="number"
-                              min="0"
-                              max="100"
-                              value={Number((outcome.probability * 100).toFixed(1))}
-                              aria-label={`Probabilidad de ${outcome.label}`}
-                              onChange={(event) => updateNode(currentAlternative.target.id, (node) => node.type === "chance" ? { ...node, branches: rebalanceBranches(node.branches, outcome.id, Number(event.target.value) / 100) } : node)}
-                            />
-                            <span>%</span>
-                          </div>
-                        </label>
-                        {outcome.target.type === "result" ? (
-                          <label>
-                            <span>{mode === "minimize" ? "Costo total" : "Valor neto"}</span>
-                            <div className="guided-prefix-input">
-                              <span>$</span>
-                              <input
-                                type="number"
-                                inputMode="decimal"
-                                value={outcome.target.value}
-                                aria-label={`${mode === "minimize" ? "Costo" : "Valor"} de ${outcome.label}`}
-                                onChange={(event) => updateNode(outcome.target.id, (node) => node.type === "result" ? { ...node, value: event.target.value } : node)}
-                              />
-                            </div>
-                          </label>
-                        ) : <span />}
-                      </div>
-                    </div>
-                  ))}
-                  <button type="button" className="guided-add" onClick={() => updateNode(currentAlternative.target.id, (node) => node.type === "chance" ? { ...node, branches: equalizeBranches([...node.branches, createBranch(`Resultado ${node.branches.length + 1}`, 0)]) } : node)}>
-                    + Agregar otro resultado
-                  </button>
-                </div>
-              )}
-            </>
-          )}
-        </div>
-      )}
-
-      {step === 3 && (
+      {step === 2 && (
         editingInternal ? renderStageEditor(editingInternal) : (
           <div className="guided-continuations">
-            <p className="guided-intro">Cada resultado puede terminar aquí o abrir otra decisión o incertidumbre. Podés repetirlo todas las veces que necesites.</p>
+            <p className="guided-intro">
+              Cada rama indica si termina en un valor, abre otra decisión o depende de un evento incierto.
+            </p>
             <div className="guided-depth-summary" aria-label="Resumen de estructura">
               <span><strong>{stats.decisions}</strong> decisiones</span>
               <span><strong>{stats.chances}</strong> incertidumbres</span>
@@ -767,57 +714,48 @@ export function GuidedTreeWizard({ onCancel, onComplete }: GuidedTreeWizardProps
             {draftIssues.length > 0 && (
               <div className="guided-issues" role="status">
                 <strong>{draftIssues.length} {draftIssues.length === 1 ? "dato pendiente" : "datos pendientes"}</strong>
-                <span>Entrá en la etapa correspondiente para completarlos.</span>
+                <span>Editá las etapas marcadas para completar el análisis.</span>
               </div>
             )}
-            {stages.length > 0 && (
-              <div className="guided-stage-map">
-                <div className="guided-map-label">Etapas posteriores</div>
-                {stages.map((stage) => (
+            <div className="guided-stage-map">
+              <div className="guided-map-label">Etapas del análisis</div>
+              {stages.map((stage) => {
+                const issues = collectDraftIssues(stage.node).length;
+                return (
                   <button key={stage.node.id} type="button" onClick={() => setEditingNodeId(stage.node.id)}>
                     <span className={`guided-node-kind guided-node-kind--${stage.node.type}`}>
                       {stage.node.type === "decision" ? "Decisión" : "Incertidumbre"}
                     </span>
-                    <span>{stage.path.join(" › ")}</span>
+                    <span>{stage.path.length > 0 ? stage.path.join(" › ") : "Inicio"}</span>
                     <strong>{stage.node.label || "Etapa sin nombre"}</strong>
+                    <small className={issues > 0 ? "pending" : "complete"}>
+                      {issues > 0 ? `${issues} ${issues === 1 ? "dato pendiente" : "datos pendientes"}` : "Completa"}
+                    </small>
                   </button>
-                ))}
-              </div>
-            )}
-            <div className="guided-map-label">Resultados finales</div>
+                );
+              })}
+            </div>
+            <div className="guided-map-label">Valores finales</div>
             <div className="guided-leaf-map">
-              {leaves.map((leaf) => (
-                <div key={leaf.node.id} className="guided-leaf-row">
-                  <div>
+              {leaves.map((leaf) => {
+                const value = parseValue(leaf.node.value);
+                const cost = parseCost(leaf.cost);
+                return (
+                  <div key={leaf.node.id} className="guided-leaf-row guided-leaf-row--summary">
                     <span className="guided-leaf-path">{leaf.path.join(" › ")}</span>
-                    <label className="guided-leaf-value">
-                      <span>{mode === "minimize" ? "Costo terminal" : "Valor terminal"}</span>
-                      <div className="guided-prefix-input">
-                        <span>$</span>
-                        <input
-                          type="number"
-                          inputMode="decimal"
-                          value={leaf.node.value}
-                          aria-label={`${mode === "minimize" ? "Costo" : "Valor"} terminal de ${leaf.path.join(" › ")}`}
-                          onChange={(event) =>
-                            updateNode(leaf.node.id, (current) =>
-                              current.type === "result" ? { ...current, value: event.target.value } : current
-                            )
-                          }
-                        />
-                      </div>
-                    </label>
+                    <strong className={value === null ? "pending" : ""}>
+                      {value === null ? "Falta valor" : formatCurrency(value)}
+                    </strong>
+                    {cost !== null && cost > 0 && <small>Costo de rama: {formatCurrency(cost)}</small>}
                   </div>
-                  <button type="button" onClick={() => setContinuingLeafId(leaf.node.id)}>Continuar rama</button>
-                  {continuingLeafId === leaf.node.id && renderContinuationPicker(leaf)}
-                </div>
-              ))}
+                );
+              })}
             </div>
           </div>
         )
       )}
 
-      {step === 4 && (
+      {step === 3 && (
         <div className="guided-review">
           <dl>
             <div><dt>Decisión</dt><dd>{root.label}</dd></div>
@@ -843,12 +781,12 @@ export function GuidedTreeWizard({ onCancel, onComplete }: GuidedTreeWizardProps
         </div>
       )}
 
-      {!(step === 3 && editingInternal) && (
+      {!(step === 2 && editingInternal) && (
         <footer className="guided-footer">
           {step > 0 ? <button type="button" className="btn btn-ghost guided-back" onClick={goBack}>Atrás</button> : <span />}
-          {step < 4 ? (
+          {step < 3 ? (
             <button type="button" className="btn btn-hero guided-next" disabled={!stepValid} onClick={goNext}>
-              {step === 2 && scenarioIndex < root.branches.length - 1 ? "Siguiente alternativa" : step === 3 ? "Revisar árbol" : "Continuar"}
+              {step === 2 ? "Revisar árbol" : "Continuar"}
             </button>
           ) : (
             <button type="button" className="btn btn-hero guided-next" onClick={() => onComplete(tree)}>Crear árbol y revisarlo</button>

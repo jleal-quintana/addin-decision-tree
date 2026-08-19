@@ -38,6 +38,39 @@ describe("GuidedTreeBuilder", () => {
     expect(compareRootDecision(tree)?.recommendedLabel).toBe("Hacer workover");
   });
 
+  it("applies a branch cost exactly once at its destination", () => {
+    const tree = buildGuidedTree({
+      name: "Estudio sísmico",
+      mode: "maximize",
+      root: {
+        id: "root_cost",
+        type: "decision",
+        label: "¿Contratar el estudio?",
+        branches: [
+          {
+            id: "b_study",
+            label: "Hacer estudio",
+            probability: null,
+            cost: 30,
+            target: { id: "study_result", type: "result", label: "Valor informado", value: 100 },
+          },
+          {
+            id: "b_sell",
+            label: "Vender",
+            probability: null,
+            cost: 0,
+            target: { id: "sell_result", type: "result", label: "Venta", value: 60 },
+          },
+        ],
+      },
+    });
+
+    const values = calculateExpectedValues(tree);
+    expect(tree.nodes.study_result.cost).toBe(30);
+    expect(values.study_result).toBe(70);
+    expect(values.root_cost).toBe(70);
+  });
+
   it("alternates chance and decision stages while preserving probabilities", () => {
     const tree = buildGuidedTree({
       name: "",
@@ -108,6 +141,122 @@ describe("GuidedTreeBuilder", () => {
     expect(values.geology).toBe(140);
     expect(values.root).toBe(140);
     expect(compareRootDecision(tree)?.recommendedLabel).toBe("Perforar");
+  });
+
+  it("models an information study with conditional decisions and branch cost", () => {
+    const posteriorPositive = (0.8 * 0.45) / 0.4975;
+    const posteriorNegative = (0.2 * 0.45) / 0.5025;
+    const drillingChance = (id: string, probability: number) => ({
+      id,
+      type: "chance" as const,
+      label: "¿Hay petróleo?",
+      branches: [
+        {
+          id: `${id}_oil_branch`,
+          label: "Petróleo",
+          probability,
+          target: { id: `${id}_oil`, type: "result" as const, label: "Petróleo", value: 500000 },
+        },
+        {
+          id: `${id}_dry_branch`,
+          label: "Sin petróleo",
+          probability: 1 - probability,
+          target: { id: `${id}_dry`, type: "result" as const, label: "Pozo seco", value: -100000 },
+        },
+      ],
+    });
+
+    const tree = buildGuidedTree({
+      name: "Exploración petrolera",
+      mode: "maximize",
+      root: {
+        id: "exploration_root",
+        type: "decision",
+        label: "¿Cómo desarrollar el área?",
+        branches: [
+          {
+            id: "direct_branch",
+            label: "Perforar directamente",
+            probability: null,
+            target: drillingChance("direct_drilling", 0.45),
+          },
+          {
+            id: "sell_branch",
+            label: "Vender",
+            probability: null,
+            target: { id: "sell_now", type: "result", label: "Venta", value: 90000 },
+          },
+          {
+            id: "study_branch",
+            label: "Hacer estudio sísmico",
+            probability: null,
+            cost: 30000,
+            target: {
+              id: "study_result",
+              type: "chance",
+              label: "Resultado del estudio",
+              branches: [
+                {
+                  id: "positive_branch",
+                  label: "Positivo",
+                  probability: 0.4975,
+                  target: {
+                    id: "positive_decision",
+                    type: "decision",
+                    label: "¿Qué hacer con resultado positivo?",
+                    branches: [
+                      {
+                        id: "positive_drill_branch",
+                        label: "Perforar",
+                        probability: null,
+                        target: drillingChance("positive_drilling", posteriorPositive),
+                      },
+                      {
+                        id: "positive_sell_branch",
+                        label: "Vender",
+                        probability: null,
+                        target: { id: "positive_sell", type: "result", label: "Venta", value: 90000 },
+                      },
+                    ],
+                  },
+                },
+                {
+                  id: "negative_branch",
+                  label: "Negativo",
+                  probability: 0.5025,
+                  target: {
+                    id: "negative_decision",
+                    type: "decision",
+                    label: "¿Qué hacer con resultado negativo?",
+                    branches: [
+                      {
+                        id: "negative_drill_branch",
+                        label: "Perforar",
+                        probability: null,
+                        target: drillingChance("negative_drilling", posteriorNegative),
+                      },
+                      {
+                        id: "negative_sell_branch",
+                        label: "Vender",
+                        probability: null,
+                        target: { id: "negative_sell", type: "result", label: "Venta", value: 90000 },
+                      },
+                    ],
+                  },
+                },
+              ],
+            },
+          },
+        ],
+      },
+    });
+
+    const values = calculateExpectedValues(tree);
+    expect(values.direct_drilling).toBeCloseTo(170000);
+    expect(values.study_result).toBeCloseTo(181475);
+    expect(values.exploration_root).toBeCloseTo(181475);
+    expect(tree.nodes.study_result.cost).toBe(30000);
+    expect(compareRootDecision(tree)?.recommendedLabel).toBe("Hacer estudio sísmico");
   });
 
   it("does not impose an artificial depth limit", () => {
