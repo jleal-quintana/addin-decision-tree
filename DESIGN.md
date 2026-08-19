@@ -212,11 +212,10 @@ Gridlines: off · Headings: off
 
 ### 5.2 Decisiones de render Excel
 
-- **Ancho de columna base**: 14 (≈95px). Tres columnas por nodo merge-eadas = ~285px por bloque de nodo — texto razonable sin truncar.
-- **Columnas-canal** de ancho 3 entre grupos de nodos, para que los conectores tengan lugar sin encimarse con texto.
-- **Alto de fila shape**: 36pt para que el círculo/cuadrado entre con padding visual.
-- **Conectores**: calculados del rect real del shape (centro-derecha del shape origen → centro-izquierda del shape destino). No hardcoded offsets. Grosor 1.5pt normal, 2.5pt optimal. Color `marine` normal, `olive` optimal.
-- **Label de probabilidad** sobre el conector, en celda dedicada 1-row-tall encima del segmento horizontal, no sobre el nodo.
+- **Bloque de nodo**: cinco filas con carriles explícitos: título, detalle, conector vacío, etiquetas de métricas y valores numéricos. Ningún texto comparte celda con su número; la etiqueta siempre queda arriba.
+- **Columnas-canal** entre profundidades para alojar la apertura diagonal y la etiqueta de rama sin ocupar el bloque de ningún nodo.
+- **Conectores**: salen horizontalmente por el carril central vacío del nodo, se abren en diagonal únicamente dentro de la columna-canal y entran horizontalmente al destino. No atraviesan títulos, inputs ni resultados.
+- **Label de rama y probabilidad**: text box contenido íntegramente dentro del canal entre nodos, arriba del segmento horizontal y sin invadir los bloques adyacentes.
 - **Caja de recomendación**: 3-4 filas mergeadas ancho completo, fondo `lime` tenue (aplicar como color celda al 30% con `#F3FFE0` sintetizado), borde 2pt `olive`, número en `Montserrat 14 bold forest`.
 - **Tabla de resumen de caminos**: header `olive` fondo con texto blanco, filas alternas `paper` / `slate` tenue. Fila del camino recomendado en bold + fondo `lime` tenue.
 - **Header y footer del documento**: bands fijas en filas 1-4 y últimas 2. Usan `sheet.pageLayout.setHeadersFooters()` también para que aparezcan al imprimir si exceden la página.

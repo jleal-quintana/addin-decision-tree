@@ -1,10 +1,12 @@
 import { oilDrillingExample, workoverExample } from "../src/engine/Examples";
 import { buildCalculationModel, CalcTablePlacement } from "../src/excel/CalculationSheet";
+import { cellAddr, rangeAddr } from "../src/excel/ExcelAddress";
 import { clearShapes, renderTreeToExcel } from "../src/excel/ShapeManager";
 import { TREE_SHEET_NAME } from "../src/excel/WorkbookConstants";
 import { buildRenderModel } from "../src/rendering/renderModel";
 import { renderToExcel } from "../src/renderer/ExcelShapeRenderer";
 import { computeLayout } from "../src/renderer/TreeLayoutEngine";
+import { GRID } from "../src/renderer/StyleConfig";
 import { getWorksheet, installFakeExcel } from "./support/fakeExcel";
 
 function makePlacement(maxRow: number): CalcTablePlacement {
@@ -103,6 +105,47 @@ describe("Excel rendering", () => {
     expect(branchBoxes.length).toBeGreaterThan(0);
     expect(branchBoxes.some((shape) => shape.textFrame.textRange.text.includes("Perforar"))).toBe(true);
     expect(branchBoxes.some((shape) => shape.textFrame.textRange.text.includes("Pozo productor") && shape.textFrame.textRange.text.includes("60%"))).toBe(true);
+  });
+
+  it("reserves separate lanes for connectors, labels and numeric values", async () => {
+    const { context } = installFakeExcel();
+    const tree = oilDrillingExample();
+    const layout = computeLayout(tree);
+    const placement = makePlacement(layout.maxRow);
+    const calc = buildCalculationModel(tree, placement);
+    const renderModel = buildRenderModel(tree, layout);
+
+    await renderToExcel(layout, renderModel, calc, placement, tree);
+
+    const sheet = getWorksheet(context, TREE_SHEET_NAME)!;
+    const rootLayout = layout.nodes.find((node) => node.id === tree.rootId)!;
+    const metricLabelAddress = cellAddr(rootLayout.col + 4, rootLayout.row + GRID.nodeRows - 2);
+    const metricValueAddress = cellAddr(rootLayout.col + 4, rootLayout.row + GRID.nodeRows - 1);
+
+    expect(sheet.cells.get(metricLabelAddress)?.value).toBe("Valor esperado");
+    expect(sheet.cells.get(metricValueAddress)?.numberFormat).toBe("$#,##0");
+    expect(String(sheet.cells.get(metricValueAddress)?.numberFormat)).not.toContain("Valor");
+
+    for (const edge of layout.edges) {
+      const from = layout.nodes.find((node) => node.id === edge.fromId)!;
+      const to = layout.nodes.find((node) => node.id === edge.toId)!;
+      const fromRange = sheet.getRange(
+        rangeAddr(from.col, from.row, GRID.nodeCols, GRID.nodeRows)
+      ) as any;
+      const toRange = sheet.getRange(
+        rangeAddr(to.col, to.row, GRID.nodeCols, GRID.nodeRows)
+      ) as any;
+      const branch = sheet.shapes.items.find(
+        (shape) => shape.name === `DT_BRANCH_${edge.fromId}_${edge.toId}`
+      ) as any;
+      const diagonal = sheet.shapes.items.find(
+        (shape) => shape.name === `DT_EDGE_${edge.fromId}_${edge.toId}_DIAG`
+      ) as any;
+
+      expect(branch.left).toBeGreaterThan(fromRange.left + fromRange.width);
+      expect(branch.left + branch.width).toBeLessThan(toRange.left);
+      expect(diagonal.left).toBeGreaterThanOrEqual(fromRange.left + fromRange.width);
+    }
   });
 
   it("renders via ShapeManager and clears previous artifacts", async () => {

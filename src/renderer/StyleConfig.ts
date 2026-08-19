@@ -18,11 +18,12 @@ export const SHAPE_PREFIX = "DT_";
 export const GRID: GridProfile = {
   startRow: 7,
   startCol: 1,
-  // Branch-style renderer: each node block keeps one visual marker cell plus
-  // enough label/value cells to avoid text colliding with the geometry.
-  nodeRows: 3,
+  // Five rows create explicit visual lanes inside every node block:
+  // title, detail, connector, metric labels, metric values. The connector
+  // never crosses text or numbers, and every metric label sits above its value.
+  nodeRows: 5,
   nodeCols: 6,
-  rowGap: 2,
+  rowGap: 1,
   colGap: 2,
 };
 

@@ -130,6 +130,15 @@ function styleTreeFormulaCell(cell: Excel.Range, primary = false): void {
   cell.format.horizontalAlignment = "Right";
 }
 
+function styleTreeMetricLabelCell(cell: Excel.Range): void {
+  cell.format.fill.color = QUINTANA.paper;
+  cell.format.font.name = "Calibri";
+  cell.format.font.size = 7;
+  cell.format.font.bold = true;
+  cell.format.font.color = QUINTANA.inkMuted;
+  cell.format.horizontalAlignment = "Right";
+}
+
 function styleTreeLabelCell(cell: Excel.Range, isOptimal: boolean): void {
   cell.format.fill.color = isOptimal ? QUINTANA.limeTenue : QUINTANA.paper;
   cell.format.font.name = "Calibri";
@@ -145,6 +154,32 @@ function styleTreeDetailCell(cell: Excel.Range): void {
   cell.format.font.size = 8;
   cell.format.font.color = QUINTANA.inkMuted;
   cell.format.horizontalAlignment = "Left";
+}
+
+function configureTreeGrid(
+  sheet: Excel.Worksheet,
+  layout: LayoutResult,
+  totalCols: number
+): void {
+  // Clear no restablece anchos ni altos. Los fijamos en cada render para que
+  // el resultado no dependa de cómo estaba formateada previamente la hoja.
+  sheet.getRange(`A:${colLetter(totalCols - 1)}`).format.columnWidth = 10;
+  sheet.getRange(
+    `${GRID.startRow + 1}:${Math.max(layout.maxRow, GRID.startRow + 1)}`
+  ).format.rowHeight = ROW_HEIGHT;
+
+  for (const startCol of new Set(layout.nodes.map((node) => node.col))) {
+    sheet.getRange(`${colLetter(startCol)}:${colLetter(startCol)}`).format.columnWidth = 5;
+    sheet.getRange(
+      `${colLetter(startCol + 1)}:${colLetter(startCol + 4)}`
+    ).format.columnWidth = 13;
+    sheet.getRange(
+      `${colLetter(startCol + 5)}:${colLetter(startCol + 5)}`
+    ).format.columnWidth = 6;
+    sheet.getRange(
+      `${colLetter(startCol + GRID.nodeCols)}:${colLetter(startCol + GRID.nodeCols + GRID.colGap - 1)}`
+    ).format.columnWidth = 9;
+  }
 }
 
 async function getOrCreateSheet(
@@ -311,16 +346,21 @@ function buildInlineCalculationMetadata(
 
   for (let index = 0; index < layout.nodes.length; index++) {
     const node = layout.nodes[index];
-    const helperCol = node.col + 1;
-    const valueCol = node.col + 2;
+    const probabilityCol = node.col + 1;
+    const costCol = node.col + 2;
+    const secondaryCol = node.col + 3;
+    const valueCol = node.col + 4;
+    const valueRow = node.row + GRID.nodeRows - 1;
     metadata.nodeRefs[node.id] = {
       rowIndex: index,
       sheetRow: node.row,
-      probabilityAddress: `${sheetPrefix}${cellAddr(helperCol, node.row)}`,
-      costAddress: `${sheetPrefix}${cellAddr(helperCol, node.row + 1)}`,
-      terminalValueAddress: `${sheetPrefix}${cellAddr(helperCol, node.row + 2)}`,
-      childrenEvAddress: `${sheetPrefix}${cellAddr(valueCol, node.row + 2)}`,
-      netEvAddress: `${sheetPrefix}${cellAddr(valueCol, node.row + 1)}`,
+      probabilityAddress: `${sheetPrefix}${cellAddr(probabilityCol, valueRow)}`,
+      costAddress: `${sheetPrefix}${cellAddr(costCol, valueRow)}`,
+      // Terminal y valor de ramas son mutuamente excluyentes: comparten el
+      // tercer carril sin agregar otra fila al documento.
+      terminalValueAddress: `${sheetPrefix}${cellAddr(secondaryCol, valueRow)}`,
+      childrenEvAddress: `${sheetPrefix}${cellAddr(secondaryCol, valueRow)}`,
+      netEvAddress: `${sheetPrefix}${cellAddr(valueCol, valueRow)}`,
     };
   }
 
@@ -334,44 +374,61 @@ function writeInlineCalculationCells(
   metadata: CalcSheetMetadata
 ): void {
   const costOp = tree.metadata.mode === "minimize" ? "+" : "-";
-  const evLabel = tree.metadata.mode === "minimize" ? "Costo EV=" : "Valor EV=";
+  const evLabel = tree.metadata.mode === "minimize" ? "Costo esperado" : "Valor esperado";
 
   for (const layoutNode of layout.nodes) {
     const node = tree.nodes[layoutNode.id];
     if (!node) continue;
-    const helperCol = layoutNode.col + 1;
-    const valueCol = layoutNode.col + 2;
+    const labelRow = layoutNode.row + GRID.nodeRows - 2;
+    const valueRow = layoutNode.row + GRID.nodeRows - 1;
+    const probabilityCol = layoutNode.col + 1;
+    const costCol = layoutNode.col + 2;
+    const secondaryCol = layoutNode.col + 3;
+    const valueCol = layoutNode.col + 4;
 
-    const probCell = sheet.getCell(layoutNode.row, helperCol);
+    const probabilityLabel = sheet.getCell(labelRow, probabilityCol);
+    probabilityLabel.values = [[node.probability !== null ? "Probabilidad" : ""]];
+    styleTreeMetricLabelCell(probabilityLabel);
+    const probCell = sheet.getCell(valueRow, probabilityCol);
     probCell.values = [[node.probability ?? ""]];
-    probCell.numberFormat = [['"p="0%']];
+    probCell.numberFormat = [["0%"]];
     styleTreeInputCell(probCell);
 
-    const costCell = sheet.getCell(layoutNode.row + 1, helperCol);
+    const costLabel = sheet.getCell(labelRow, costCol);
+    costLabel.values = [["Costo"]];
+    styleTreeMetricLabelCell(costLabel);
+    const costCell = sheet.getCell(valueRow, costCol);
     costCell.values = [[node.cost ?? ""]];
-    costCell.numberFormat = [['"Costo="$#,##0']];
+    costCell.numberFormat = [["$#,##0"]];
     styleTreeInputCell(costCell);
 
-    const terminalCell = sheet.getCell(layoutNode.row + 2, helperCol);
+    const secondaryLabel = sheet.getCell(labelRow, secondaryCol);
+    secondaryLabel.values = [[node.type === "end" ? "Resultado" : "Valor de ramas"]];
+    styleTreeMetricLabelCell(secondaryLabel);
+    const terminalCell = sheet.getCell(valueRow, secondaryCol);
     terminalCell.values = [[node.type === "end" ? node.payoff ?? 0 : ""]];
-    terminalCell.numberFormat = [['"Terminal="$#,##0']];
+    terminalCell.numberFormat = [["$#,##0"]];
     styleTreeInputCell(terminalCell);
+
+    const expectedValueLabel = sheet.getCell(labelRow, valueCol);
+    expectedValueLabel.values = [[evLabel]];
+    styleTreeMetricLabelCell(expectedValueLabel);
   }
 
   for (const layoutNode of [...layout.nodes].reverse()) {
     const node = tree.nodes[layoutNode.id];
     if (!node) continue;
     const ref = metadata.nodeRefs[node.id];
-    const helperCol = layoutNode.col + 1;
-    const valueCol = layoutNode.col + 2;
-    const childrenEvCell = sheet.getRange(ref.childrenEvAddress.split("!").pop() ?? cellAddr(valueCol, layoutNode.row + 2));
-    const netEvCell = sheet.getRange(ref.netEvAddress.split("!").pop() ?? cellAddr(valueCol, layoutNode.row + 1));
+    const costCol = layoutNode.col + 2;
+    const secondaryCol = layoutNode.col + 3;
+    const valueCol = layoutNode.col + 4;
+    const valueRow = layoutNode.row + GRID.nodeRows - 1;
+    const childrenEvCell = sheet.getRange(ref.childrenEvAddress.split("!").pop() ?? cellAddr(secondaryCol, valueRow));
+    const netEvCell = sheet.getRange(ref.netEvAddress.split("!").pop() ?? cellAddr(valueCol, valueRow));
 
     if (node.type === "end" || node.childIds.length === 0) {
-      childrenEvCell.values = [[""]];
-      netEvCell.formulas = [[`=N(${sameSheetRef(helperCol, layoutNode.row + 2)})${costOp}N(${sameSheetRef(helperCol, layoutNode.row + 1)})`]];
-      netEvCell.numberFormat = [[`"${evLabel}"$#,##0`]];
-      styleTreeFormulaCell(childrenEvCell);
+      netEvCell.formulas = [[`=N(${ref.terminalValueAddress})${costOp}N(${ref.costAddress})`]];
+      netEvCell.numberFormat = [["$#,##0"]];
       styleTreeFormulaCell(netEvCell, true);
       continue;
     }
@@ -394,9 +451,9 @@ function writeInlineCalculationCells(
       childrenEvCell.formulas = [[childRefs.length > 0 ? `=${fn}(${childRefs.join(",")})` : "=0"]];
     }
 
-    childrenEvCell.numberFormat = [['"Hijos="$#,##0']];
-    netEvCell.formulas = [[`=${ref.childrenEvAddress}${costOp}N(${sameSheetRef(helperCol, layoutNode.row + 1)})`]];
-    netEvCell.numberFormat = [[`"${evLabel}"$#,##0`]];
+    childrenEvCell.numberFormat = [["$#,##0"]];
+    netEvCell.formulas = [[`=${ref.childrenEvAddress}${costOp}N(${sameSheetRef(costCol, valueRow)})`]];
+    netEvCell.numberFormat = [["$#,##0"]];
     styleTreeFormulaCell(childrenEvCell);
     styleTreeFormulaCell(netEvCell, true);
   }
@@ -413,17 +470,19 @@ function writeNodeCells(
   const startCol = layoutNode.col;
   const width = GRID.nodeCols;
 
-  const shapeRowRange = sheet.getRange(rangeAddr(startCol, layoutNode.row, width, 1));
-  shapeRowRange.unmerge();
-  shapeRowRange.values = Array.from({ length: 1 }, () => Array.from({ length: width }, () => ""));
+  const nodeRange = sheet.getRange(rangeAddr(startCol, layoutNode.row, width, GRID.nodeRows));
+  nodeRange.unmerge();
+  nodeRange.values = Array.from({ length: GRID.nodeRows }, () =>
+    Array.from({ length: width }, () => "")
+  );
 
   // Branch-style labels: el nodo queda limpio; título, valor y detalle viven
   // como celdas auditables cerca de la junta. Esto escala mejor para árboles
   // grandes y replica el lenguaje visual del Excel de referencia.
-  const labelCol = startCol + 3;
-  const labelWidth = Math.max(1, width - 3);
+  const labelCol = startCol + 1;
+  const labelWidth = Math.max(1, width - 1);
   const titleRow = layoutNode.row;
-  const detailRow = layoutNode.row + 2;
+  const detailRow = layoutNode.row + 1;
 
   if (titleRow >= 0) {
     const titleRange = setRowBandValue(sheet, labelCol, titleRow, labelWidth, renderNode.title);
@@ -438,9 +497,10 @@ function writeNodeCells(
 }
 
 /**
- * Conector tipo VM Plan: una diagonal corta que abre/cierra la rama y luego un
- * tramo horizontal largo. No usamos `elbow` porque genera ángulos de 90°; el
- * workbook de referencia usa doglegs con diagonal + recta.
+ * Conector con carriles reservados: sale horizontalmente por el centro vacío
+ * del nodo, abre la rama solo dentro del gap entre profundidades y entra
+ * horizontalmente al siguiente nodo. Así ninguna diagonal atraviesa textos,
+ * inputs o resultados.
  */
 function addEdgeLines(
   sheet: Excel.Worksheet,
@@ -454,22 +514,29 @@ function addEdgeLines(
   const beginTop = fromRect.top + fromRect.height / 2;
   const endLeft = toRect.left + 4 + targetMarkerSize / 2;
   const endTop = toRect.top + toRect.height / 2;
-  const horizontalStartLeft = Math.min(
-    endLeft - 10,
-    beginLeft + Math.max(18, Math.min(42, (endLeft - beginLeft) * 0.28))
-  );
+  const sourceExitLeft = Math.min(fromRect.left + fromRect.width, endLeft - 20);
+  const targetEntryLeft = Math.max(sourceExitLeft + 12, toRect.left - 10);
 
-  const diagonal = sheet.shapes.addLine(
+  const sourceHorizontal = sheet.shapes.addLine(
     beginLeft,
     beginTop,
-    horizontalStartLeft,
+    sourceExitLeft,
+    beginTop,
+    Excel.ConnectorType.straight
+  );
+  sourceHorizontal.name = `${SHAPE_PREFIX}EDGE_${edge.fromId}_${edge.toId}_SOURCE`;
+
+  const diagonal = sheet.shapes.addLine(
+    sourceExitLeft,
+    beginTop,
+    targetEntryLeft,
     endTop,
     Excel.ConnectorType.straight
   );
   diagonal.name = `${SHAPE_PREFIX}EDGE_${edge.fromId}_${edge.toId}_DIAG`;
 
   const horizontal = sheet.shapes.addLine(
-    horizontalStartLeft,
+    targetEntryLeft,
     endTop,
     endLeft,
     endTop,
@@ -477,7 +544,7 @@ function addEdgeLines(
   );
   horizontal.name = `${SHAPE_PREFIX}EDGE_${edge.fromId}_${edge.toId}_H`;
 
-  return [diagonal, horizontal];
+  return [sourceHorizontal, diagonal, horizontal];
 }
 
 function styleEdgeLine(line: Excel.Shape, edge: LayoutResult["edges"][number]): void {
@@ -534,14 +601,12 @@ function addEdgeLabelTextBox(
   const beginLeft = fromRect.left + 4 + markerSize;
   const endLeft = toRect.left + 4 + targetMarkerSize / 2;
   const endTop = toRect.top + toRect.height / 2;
-  const horizontalStartLeft = Math.min(
-    endLeft - 10,
-    beginLeft + Math.max(18, Math.min(42, (endLeft - beginLeft) * 0.28))
-  );
-
-  const width = Math.max(58, Math.min(132, endLeft - horizontalStartLeft - 8));
+  const labelStartLeft = Math.max(beginLeft, fromRect.left + fromRect.width + 6);
+  const labelEndLeft = Math.min(endLeft - 6, toRect.left - 6);
+  const availableWidth = Math.max(1, labelEndLeft - labelStartLeft);
+  const width = Math.min(132, availableWidth);
   const height = edgeLabel.includes("\n") ? 28 : 18;
-  const left = horizontalStartLeft + Math.max(2, (endLeft - horizontalStartLeft - width) / 2);
+  const left = labelStartLeft + Math.max(0, (availableWidth - width) / 2);
   const top = endTop - height - 4;
 
   const box = sheet.shapes.addTextBox(edgeLabel.replace(/\n/g, " · "));
@@ -911,12 +976,8 @@ export async function renderToExcel(
         // tabla de caminos y header tengan espacio razonable.
         const totalCols = Math.max(layout.maxCol + GRID.nodeCols + 2, 24);
         const lastColIdx = totalCols - 1;
-        // No forzamos columnWidth de todas las columnas. Antes las ponía en 9 y
-        // los valores con formato moneda se mostraban como "####". Dejamos el
-        // ancho default de Excel (~8.43 ≈ 64px) y listo; las bandas del header,
-        // recomendación y tabla de caminos siguen usando merge para ocupar el
-        // ancho completo, y los nodos a 4 columnas tienen ~256px de sobra.
         treeSheet.showGridlines = false;
+        configureTreeGrid(treeSheet, layout, totalCols);
 
         // Fila del shape más alta para que el polígono entre cómodo.
 
